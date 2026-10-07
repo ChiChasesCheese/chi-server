@@ -1,0 +1,20 @@
+# vault：Vaultwarden —— Bitwarden 服务端的 Rust 实现，所有官方 Bitwarden 客户端/浏览器插件都能用。
+# 必须走 HTTPS（浏览器的 WebCrypto 只在安全上下文可用），所以只通过 `chi serve` 访问。
+#
+# 第一次：.env 里 VAULTWARDEN_SIGNUPS_ALLOWED=true → chi up vault → 注册 → 改回 false → chi up vault
+# 数据是客户端加密的，服务器上只有密文；但仍要备份（chi backup）。
+
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: chi-vaultwarden
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8222:80"
+    environment:
+      DOMAIN: "https://${TS_FQDN:-localhost}:8005"
+      SIGNUPS_ALLOWED: "${VAULTWARDEN_SIGNUPS_ALLOWED:-false}"
+      # 不设 ADMIN_TOKEN = 管理后台关闭。需要时用 `docker exec -it chi-vaultwarden /vaultwarden hash` 生成
+      TZ: "${TZ}"
+    volumes:
+      - ${DATA_DIR}/vaultwarden:/data

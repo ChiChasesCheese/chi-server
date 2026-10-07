@@ -1,0 +1,22 @@
+# ai：本地大模型
+#   Ollama     不在这里！它用 brew 装在宿主机上（chi bootstrap ollama），
+#              因为 Docker 在 macOS 上拿不到 Apple GPU（Metal），容器里跑模型只能用 CPU，慢好几倍。
+#   Open WebUI ChatGPT 风格的前端，连宿主机的 Ollama。
+
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: chi-open-webui
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:3080:8080"
+    environment:
+      OLLAMA_BASE_URL: "http://host.docker.internal:11434"
+      WEBUI_SECRET_KEY: "${OPEN_WEBUI_SECRET_KEY}"
+      WEBUI_URL: "https://${TS_FQDN:-localhost}:8003"
+      TZ: "${TZ}"
+    extra_hosts:
+      # OrbStack 自带 host.docker.internal；Colima 需要这一行
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${DATA_DIR}/open-webui:/app/backend/data

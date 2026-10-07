@@ -1,0 +1,24 @@
+name: lint
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: shellcheck -x bin/chi scripts/*.sh stacks/*/*.sh
+
+      - name: docker compose config
+        run: |
+          cp .env.example .env
+          sed -i "s#/Users/CHANGE_ME#$HOME#g; s#^TS_FQDN=#TS_FQDN=ci.example.ts.net#" .env
+          for f in stacks/*/compose.yaml; do
+            s="$(basename "$(dirname "$f")")"
+            docker compose -p "chi-$s" --env-file .env -f "$f" config -q
+            echo "✓ $s"
+          done

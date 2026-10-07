@@ -1,0 +1,42 @@
+# https://gethomepage.dev/configs/services/
+# href 用的是 `chi serve` 暴露的 Tailscale HTTPS 端口（端口表见 scripts/tailscale-serve.sh）。
+# 没启用的 stack 卡片会显示为未运行，正常；不想看到就删掉对应条目。
+- 核心:
+    - Uptime Kuma:
+        icon: uptime-kuma.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8001
+        description: 监控与告警
+        server: local
+        container: chi-uptime-kuma
+    - Dozzle:
+        icon: dozzle.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8002
+        description: 容器日志
+        server: local
+        container: chi-dozzle
+
+- 应用:
+    - Open WebUI:
+        icon: open-webui.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8003
+        description: 本地大模型聊天（Ollama）
+        server: local
+        container: chi-open-webui
+    - n8n:
+        icon: n8n.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8004
+        description: 自动化工作流
+        server: local
+        container: chi-n8n
+    - Vaultwarden:
+        icon: vaultwarden.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8005
+        description: 密码管理
+        server: local
+        container: chi-vaultwarden
+    - Immich:
+        icon: immich.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8006
+        description: 相册
+        server: local
+        container: immich_server

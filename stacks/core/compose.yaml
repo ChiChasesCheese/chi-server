@@ -1,0 +1,45 @@
+# core：每台服务器都该有的三件套
+#   Homepage     首页/导航，所有服务一个入口
+#   Uptime Kuma  监控 + 告警（挂了推送到手机/Telegram/Bark 等）
+#   Dozzle       网页看容器日志（只读）
+#
+# 端口都绑在 ${BIND_ADDR}（默认 127.0.0.1），外部访问统一走 `chi serve`。
+
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: chi-homepage
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:3000:3000"
+    environment:
+      # Homepage 1.x 起必须声明允许的 Host，防 DNS rebinding
+      HOMEPAGE_ALLOWED_HOSTS: "${TS_FQDN:-localhost},localhost:3000,127.0.0.1:3000,${CHI_HOSTNAME:-chi-mini}.local:3000"
+      # 在 homepage/*.yaml 里用 {{HOMEPAGE_VAR_TS_FQDN}} 引用
+      HOMEPAGE_VAR_TS_FQDN: "${TS_FQDN:-localhost}"
+      TZ: "${TZ}"
+    volumes:
+      - ./homepage:/app/config
+      # 只读挂 docker socket，用来在卡片上显示容器运行状态
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:2
+    container_name: chi-uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:3001:3001"
+    environment:
+      TZ: "${TZ}"
+    volumes:
+      - ${DATA_DIR}/uptime-kuma:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: chi-dozzle
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
