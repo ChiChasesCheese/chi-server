@@ -8,6 +8,10 @@
         description: 监控与告警
         server: local
         container: chi-uptime-kuma
+    - 回国分流:
+        icon: mdi-earth-arrow-right
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8007/ui
+        description: mihomo 面板（chi proxy）
     - Dozzle:
         icon: dozzle.png
         href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8002

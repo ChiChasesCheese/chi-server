@@ -17,6 +17,11 @@ if [ "${1:-}" != "--no-brew" ]; then
   brew upgrade
   # 注意：brew 升级 ollama 后需要重启服务
   if brew services list 2>/dev/null | grep -q '^ollama.*started'; then brew services restart ollama; fi
+  # mihomo 升级后二进制路径变了，防火墙要重新放行，否则局域网设备连不上代理
+  if brew services list 2>/dev/null | grep -q '^mihomo.*started'; then
+    "$CHI_ROOT/scripts/proxy.sh" firewall
+    brew services restart mihomo
+  fi
 fi
 
 require_docker

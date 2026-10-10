@@ -1,0 +1,81 @@
+# mihomo（Clash Meta 内核）配置模板。scripts/proxy.sh 会填好占位符，写到
+#   $(brew --prefix)/etc/mihomo/config.yaml   （含订阅地址，权限 600，不进 git）
+#
+# 设计：默认全部直连，只有中国大陆的视频/音乐站点走「回国」节点。
+#   → VPN 商只能看到这些流量，而不是你的全部上网记录
+#   → 回国节点慢或者挂了，也只影响这几个站点
+#
+# 文档：https://wiki.metacubex.one/en/config/
+
+mixed-port: __PORT__          # HTTP + SOCKS5 共用端口
+allow-lan: true               # 让投影仪 / 电视盒子用这个代理
+bind-address: "*"
+# 只放行私有网段和 tailnet，防止误开端口转发后变成公网开放代理
+lan-allowed-ips:
+  - 127.0.0.0/8
+  - 10.0.0.0/8           # Xfinity 网关默认的局域网段是 10.0.0.x
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+  - 100.64.0.0/10        # Tailscale
+mode: rule
+log-level: warning
+ipv6: false
+
+# 管理 API + 网页面板（metacubexd）。只绑本机，外部访问走 `chi serve`（:8007）
+external-controller: 127.0.0.1:9090
+secret: "__SECRET__"
+external-ui: ./ui
+external-ui-url: "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
+
+geodata-mode: true
+geo-auto-update: true
+geo-update-interval: 168
+geox-url:
+  geoip: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat"
+  geosite: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"
+  mmdb: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/country.mmdb"
+
+proxy-providers:
+  cn-vpn:
+    type: http
+    url: '__SUB_URL__'
+    path: ./providers/cn-vpn.yaml
+    interval: 21600
+    # 只挑大陆节点。按你的机场节点命名改 .env 里的 CLASH_CN_FILTER
+    filter: '__CN_FILTER__'
+    health-check:
+      enable: true
+      # 用国内可达的 204 地址测速（gstatic 在国内出口是不通的）
+      url: http://connect.rom.miui.com/generate_204
+      interval: 300
+      timeout: 5000
+      lazy: true
+
+proxy-groups:
+  - name: CN
+    type: url-test              # 自动选延迟最低的大陆节点
+    use: [cn-vpn]
+    url: http://connect.rom.miui.com/generate_204
+    interval: 300
+    tolerance: 50
+  - name: CN-media
+    type: select                # 面板里可以一键切成 DIRECT 临时关闭回国
+    proxies: [CN, DIRECT]
+
+rules:
+  # 局域网和 tailnet 永远直连
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
+  # 大陆限定内容（判断依据是 API 请求的出口 IP）
+  - GEOSITE,bilibili,CN-media
+  - GEOSITE,iqiyi,CN-media
+  - GEOSITE,youku,CN-media
+  - DOMAIN-SUFFIX,v.qq.com,CN-media
+  - DOMAIN-SUFFIX,video.qq.com,CN-media
+  - DOMAIN-SUFFIX,y.qq.com,CN-media
+  - DOMAIN-SUFFIX,music.163.com,CN-media
+  - DOMAIN-SUFFIX,mgtv.com,CN-media
+  # 想加别的站点：照上面的格式在这里加，然后 chi proxy apply
+  - MATCH,DIRECT

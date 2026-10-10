@@ -82,6 +82,16 @@ if [ -f "$CHI_ROOT/.env" ] && case " $(resolve_stacks) " in *" ai "*) true ;; *)
   fi
 fi
 
+if [ -n "${CLASH_SUBSCRIPTION_URL:-}" ]; then
+  log "回国分流"
+  if nc -z 127.0.0.1 "${CLASH_PORT:-7890}" >/dev/null 2>&1; then
+    via="$(curl -fsS --max-time 10 -x "http://127.0.0.1:${CLASH_PORT:-7890}" https://api.bilibili.com/x/web-interface/zone 2>/dev/null | jq -r '.data.country' 2>/dev/null || true)"
+    [ "$via" = "中国" ] && ok "mihomo 在线，B 站出口：中国" || bad "mihomo 在线但 B 站出口是「${via:-未知}」→ chi proxy status"
+  else
+    bad "mihomo 没在监听 :${CLASH_PORT:-7890} → chi proxy install"
+  fi
+fi
+
 echo
 if [ "$fails" -eq 0 ]; then ok "全部正常"; else warn "$fails 项需要处理"; fi
 exit "$fails"

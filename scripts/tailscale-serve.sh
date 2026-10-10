@@ -36,6 +36,11 @@ case "$action" in
         ok "$s  https://$TS_FQDN$( [ "$https" = 443 ] || printf ':%s' "$https")  →  127.0.0.1:$local_port"
       done
     done
+    # mihomo 面板（装了 chi proxy 才有）
+    if [ -f "$(brew --prefix)/etc/mihomo/config.yaml" ]; then
+      sudo tailscale serve --bg --https=8007 "http://127.0.0.1:9090" >/dev/null
+      ok "proxy  https://$TS_FQDN:8007/ui  →  127.0.0.1:9090（面板里后端填 https://$TS_FQDN:8007，密钥是 .env 的 CLASH_SECRET）"
+    fi
     ;;
   status) tailscale serve status ;;
   reset)  sudo tailscale serve reset && ok "已清空所有 serve 规则" ;;

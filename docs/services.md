@@ -12,6 +12,8 @@
 | Vaultwarden | vault | 8222 | 8005 |
 | Immich | photos | 2283 | 8006 |
 | Ollama（宿主机） | ai | 11434 | 不暴露 |
+| mihomo 面板（宿主机） | `chi proxy` | 9090 | 8007（`/ui`） |
+| mihomo 代理端口（宿主机） | `chi proxy` | 7890（局域网/tailnet 可连） | — |
 
 改端口要同步三处：`stacks/*/compose.yaml`、`scripts/tailscale-serve.sh`、`stacks/core/homepage/services.yaml`。
 

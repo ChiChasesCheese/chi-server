@@ -36,6 +36,7 @@ fill_if_empty DATA_DIR "$HOME/srv/data"
 fill_if_empty RESTIC_PASSWORD_FILE "$HOME/.config/chi/restic-password"
 fill_if_empty OPEN_WEBUI_SECRET_KEY "$(rand_hex 32)"
 fill_if_empty N8N_ENCRYPTION_KEY "$(rand_hex 32)"
+fill_if_empty CLASH_SECRET "$(rand_hex 16)"
 
 if is_macos && [ -L /etc/localtime ]; then
   tz="$(readlink /etc/localtime | sed 's#.*/zoneinfo/##')"

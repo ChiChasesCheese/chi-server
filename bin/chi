@@ -24,6 +24,10 @@ usage() {
   update [--no-brew]    升级 brew 包 + 拉新镜像并重建容器
   serve [apply|status|reset]  用 tailscale serve 把服务以 HTTPS 暴露到你的 tailnet
 
+回国 / 电视（见 docs/china-media.md）
+  proxy [install|apply|test|status|logs]  mihomo 分流：只有大陆视频站走回国 VPN
+  tv [connect|install|proxy|apps|shell]   adb 远程管理 Google TV 盒子
+
 数据
   backup [init|run|snapshots|check]  restic 备份 \$DATA_DIR（默认 run）
   schedule [install|uninstall]       安装/卸载 launchd 定时任务（每日备份）
@@ -57,6 +61,8 @@ case "$cmd" in
   serve)      exec "$CHI_ROOT/scripts/tailscale-serve.sh" "$@" ;;
   backup)     exec "$CHI_ROOT/scripts/backup.sh" "$@" ;;
   schedule)   exec "$CHI_ROOT/scripts/schedule.sh" "$@" ;;
+  proxy)      exec "$CHI_ROOT/scripts/proxy.sh" "$@" ;;
+  tv)         exec "$CHI_ROOT/scripts/tv.sh" "$@" ;;
   up|down|restart|ps)
     load_env
     require_docker

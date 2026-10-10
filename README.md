@@ -72,6 +72,8 @@ bin/chi doctor          # 体检，全绿就完事
 | `chi backup [init\|run\|snapshots\|check]` | restic 备份 |
 | `chi schedule [install\|uninstall]` | launchd 定时备份 |
 | `chi doctor` | 只读体检 |
+| `chi proxy [install\|apply\|test\|status]` | 回国分流：只有大陆视频站走你的回国 VPN（[china-media](docs/china-media.md)） |
+| `chi tv [connect\|install\|proxy]` | adb 远程管理 Google TV 盒子：侧载 App、设代理 |
 
 ## Stacks（在 `.env` 的 `CHI_STACKS` 里开关）
 
@@ -99,6 +101,9 @@ scripts/
   update.sh             升级
   doctor.sh             体检
   schedule.sh           launchd 定时任务
+  proxy.sh              mihomo 回国分流
+  tv.sh                 adb 管理电视盒子
+config/mihomo/          mihomo 配置模板（分流规则在这里改）
 stacks/<name>/
   compose.yaml          这个 stack 的服务定义
   pre-up.sh             （可选）启动前钩子
@@ -118,4 +123,5 @@ Brewfile                宿主机工具
 3. [remote-access.md](docs/remote-access.md) — Tailscale / 公网暴露 / 自己的域名
 4. [services.md](docs/services.md) — 每个服务怎么用
 5. [operations.md](docs/operations.md) — 日常运维、升级、**恢复演练**、排障
-6. [ideas.md](docs/ideas.md) — 还能拿它干什么（Home Assistant、AI agent、媒体库……）
+6. [china-media.md](docs/china-media.md) — 回国分流：在美国看 B 站等大陆限定内容，投影/电视盒子怎么配
+7. [ideas.md](docs/ideas.md) — 还能拿它干什么（Home Assistant、AI agent、媒体库……）
