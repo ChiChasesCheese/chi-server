@@ -17,6 +17,7 @@ lan-allowed-ips:
   - 172.16.0.0/12
   - 192.168.0.0/16
   - 100.64.0.0/10        # Tailscale
+  - 198.18.0.0/15        # OrbStack 容器网络（MeTube 通过 host.docker.internal 走代理）
 mode: rule
 log-level: warning
 ipv6: false
@@ -68,6 +69,7 @@ rules:
   - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
   - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
   - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
+  - IP-CIDR,198.18.0.0/15,DIRECT,no-resolve
   # 大陆限定内容（判断依据是 API 请求的出口 IP）
   - GEOSITE,bilibili,CN-media
   - GEOSITE,iqiyi,CN-media

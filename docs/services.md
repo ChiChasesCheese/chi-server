@@ -11,6 +11,9 @@
 | n8n | automation | 5678 | 8004 |
 | Vaultwarden | vault | 8222 | 8005 |
 | Immich | photos | 2283 | 8006 |
+| 接入页面 / PAC | `chi onboard` | 静态文件 | 8008 |
+| Jellyfin | media | 8096（局域网可连） | 8009 |
+| MeTube | media | 8081 | 8010 |
 | Ollama（宿主机） | ai | 11434 | 不暴露 |
 | mihomo 面板（宿主机） | `chi proxy` | 9090 | 8007（`/ui`） |
 | mihomo 代理端口（宿主机） | `chi proxy` | 7890（局域网/tailnet 可连） | — |

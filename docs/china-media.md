@@ -88,7 +88,7 @@ yt-dlp --proxy http://127.0.0.1:7890 --cookies cookies.txt "https://www.bilibili
 ```
 
 - `cookies.txt`：浏览器登录 B 站后用 cookie 导出扩展导出。不带 cookie 最高只有 480p；大会员内容需要大会员账号的 cookie。
-- 等媒体模块（Jellyfin + `chi fetch`）做好后会把这一步自动化：给链接 → 自动判断走不走回国 → 下到媒体库 → 投影上直接播。
+- 更省事：启用 `media` stack 后直接 `chi fetch <B站链接>`（或 iPhone 分享菜单），MeTube 会自动走 mihomo，下完在 Jellyfin / 投影上看。见 [media.md](media.md)。
 
 ## 已知限制（说实话）
 

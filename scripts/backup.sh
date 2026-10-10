@@ -53,8 +53,11 @@ case "$action" in
     done
 
     log "备份应用数据（不含 Immich 照片库）"
+    # 媒体文件不备份（可重新下载；256GB 的盘也装不下两份）。Jellyfin 配置/观看记录在 $DATA_DIR/jellyfin，会备份
     restic backup "$DATA_DIR" \
       --exclude "$DATA_DIR/immich" \
+      --exclude "${MEDIA_DIR:-$DATA_DIR/media}" \
+      --exclude "$DATA_DIR/jellyfin/cache" \
       --tag apps --host "${CHI_HOSTNAME:-chi-mini}"
 
     restart_all

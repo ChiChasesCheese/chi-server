@@ -72,6 +72,9 @@ bin/chi doctor          # 体检，全绿就完事
 | `chi backup [init\|run\|snapshots\|check]` | restic 备份 |
 | `chi schedule [install\|uninstall]` | launchd 定时备份 |
 | `chi doctor` | 只读体检 |
+| `chi fetch <url>` | 下载视频到媒体库（YouTube、B 站等） |
+| `chi media [usage\|clean\|scan]` | 媒体库占用 / 按上限清理 / Jellyfin 重扫 |
+| `chi onboard` | 生成给自己和朋友的接入页面 + 邀请文字 |
 | `chi proxy [install\|apply\|test\|status]` | 回国分流：只有大陆视频站走你的回国 VPN（[china-media](docs/china-media.md)） |
 | `chi tv [connect\|install\|proxy]` | adb 远程管理 Google TV 盒子：侧载 App、设代理 |
 
@@ -83,7 +86,8 @@ bin/chi doctor          # 体检，全绿就完事
 | `ai` | Open WebUI（+ 宿主机 Ollama） | 1 GB + 模型大小 | 16 GB 起有意义 |
 | `automation` | n8n | ~300 MB | “中枢”的核心 |
 | `vault` | Vaultwarden | ~50 MB | 强烈推荐，前提是备份做好 |
-| `photos` | Immich | 2–4 GB | 16 GB+ 再开 |
+| `photos` | Immich | 2–4 GB | 16 GB+ 内存、硬盘够大再开 |
+| `media` | Jellyfin + MeTube（小型 NAS / 下载器） | ~500 MB | 投影 / 电视盒子看片，见 [media](docs/media.md) |
 
 每个服务的用法、首次配置、内存怎么分配给模型，见 [docs/services.md](docs/services.md)。
 
@@ -103,7 +107,10 @@ scripts/
   schedule.sh           launchd 定时任务
   proxy.sh              mihomo 回国分流
   tv.sh                 adb 管理电视盒子
+  media.sh              下载 / 媒体库清理
+  onboard.sh            生成接入页面和 PAC
 config/mihomo/          mihomo 配置模板（分流规则在这里改）
+config/onboarding/      接入页面和 PAC 模板
 stacks/<name>/
   compose.yaml          这个 stack 的服务定义
   pre-up.sh             （可选）启动前钩子
@@ -123,5 +130,7 @@ Brewfile                宿主机工具
 3. [remote-access.md](docs/remote-access.md) — Tailscale / 公网暴露 / 自己的域名
 4. [services.md](docs/services.md) — 每个服务怎么用
 5. [operations.md](docs/operations.md) — 日常运维、升级、**恢复演练**、排障
-6. [china-media.md](docs/china-media.md) — 回国分流：在美国看 B 站等大陆限定内容，投影/电视盒子怎么配
-7. [ideas.md](docs/ideas.md) — 还能拿它干什么（Home Assistant、AI agent、媒体库……）
+6. [media.md](docs/media.md) — 小型 NAS：下载 → Jellyfin → onn 盒子 / 投影，256 GB 硬盘怎么分
+7. [onboarding.md](docs/onboarding.md) — 你的 iPhone / MacBook 和朋友怎么接入，ACL 怎么配
+8. [china-media.md](docs/china-media.md) — 回国分流：在美国看 B 站等大陆限定内容，投影/电视盒子怎么配
+9. [ideas.md](docs/ideas.md) — 还能拿它干什么（Home Assistant、AI agent、媒体库……）

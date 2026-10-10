@@ -28,7 +28,7 @@ Mac mini 最独特的价值。
 
 ## 4. 媒体库：Jellyfin / Plex
 
-同样**原生跑，不要进容器**——原生才能用 Apple 的 VideoToolbox 硬件转码。`brew install --cask jellyfin`（或 Plex Media Server）。媒体文件放外置盘。
+已做成 `media` stack（容器版 Jellyfin + MeTube），见 [media.md](media.md)，里面解释了为什么最终选了容器而不是原生。
 
 ## 5. 全家去广告 DNS：AdGuard Home
 

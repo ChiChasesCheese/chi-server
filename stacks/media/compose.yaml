@@ -1,0 +1,53 @@
+# media：小型 NAS / 家庭影院
+#   Jellyfin  媒体库 + 播放服务器。onn 盒子 / iPhone / Mac 上用 Jellyfin 客户端看
+#   MeTube    yt-dlp 的网页界面 + API：贴链接（或 chi fetch / iPhone 快捷指令）就下载到媒体库
+#
+# 目录（MEDIA_DIR，默认 $DATA_DIR/media）：
+#   Downloads/  MeTube 下载到这里。超过 MEDIA_MAX_GB 时 `chi media clean` 从最旧的开始删
+#   Keep/       想永久保留的挪到这里，自动清理永远不碰
+#   Movies/ TV/ 你自己放的片子，同样不自动删
+# 媒体文件不进 restic 备份（可以重新下载）；Jellyfin 的配置和观看记录会备份。
+
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: chi-jellyfin
+    restart: unless-stopped
+    ports:
+      # 默认对局域网开放：onn 盒子没装 Tailscale 也能连 http://<Mac的IP>:8096。Jellyfin 自带账号登录
+      - "${MEDIA_BIND_ADDR:-0.0.0.0}:8096:8096"
+    environment:
+      TZ: "${TZ}"
+      JELLYFIN_PublishedServerUrl: "https://${TS_FQDN:-localhost}:8009"
+    volumes:
+      - ${DATA_DIR}/jellyfin/config:/config
+      - ${DATA_DIR}/jellyfin/cache:/cache
+      # 只读：Jellyfin 不能删文件，删除统一由 chi media clean 或你自己做
+      - ${MEDIA_DIR}:/media:ro
+
+  metube:
+    image: ghcr.io/alexta69/metube:latest
+    container_name: chi-metube
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8081:8081"
+    environment:
+      DOWNLOAD_DIR: /downloads
+      STATE_DIR: /state
+      TEMP_DIR: /downloads/.incomplete
+      # Jellyfin 友好的命名：频道/日期 标题 [id].扩展名
+      OUTPUT_TEMPLATE: "%(uploader|Unknown)s/%(upload_date>%Y-%m-%d|)s %(title).120B [%(id)s].%(ext)s"
+      OUTPUT_TEMPLATE_PLAYLIST: "%(playlist_title)s/%(playlist_index|0)03d %(title).120B [%(id)s].%(ext)s"
+      OUTPUT_TEMPLATE_CHANNEL: "%(channel|Unknown)s/%(upload_date>%Y-%m-%d|)s %(title).120B [%(id)s].%(ext)s"
+      # 由 pre-up.sh 生成到 stacks/media/.env：装了 chi proxy 就自动走代理（B 站大陆限定内容）
+      YTDL_OPTIONS: "${METUBE_YTDL_OPTIONS:-{}}"
+      # yt-dlp 每天凌晨自动更新到 nightly —— YouTube 经常改反爬，旧版本很快失效
+      YTDL_NIGHTLY_UPDATE_TIME: "03:30"
+      MAX_CONCURRENT_DOWNLOADS: "2"
+      DEFAULT_THEME: auto
+      TZ: "${TZ}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${MEDIA_DIR}/Downloads:/downloads
+      - ${DATA_DIR}/metube:/state

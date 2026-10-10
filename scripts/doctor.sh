@@ -82,6 +82,18 @@ if [ -f "$CHI_ROOT/.env" ] && case " $(resolve_stacks) " in *" ai "*) true ;; *)
   fi
 fi
 
+if [ -f "$CHI_ROOT/.env" ] && case " $(resolve_stacks) " in *" media "*) true ;; *) false ;; esac; then
+  log "媒体库"
+  md="${MEDIA_DIR:-$DATA_DIR/media}"
+  if [ -d "$md/Downloads" ]; then
+    used_g=$(( $(du -sk "$md/Downloads" | awk '{print $1}') / 1024 / 1024 ))
+    [ "$used_g" -le "${MEDIA_MAX_GB:-60}" ] && ok "Downloads ${used_g}G / 上限 ${MEDIA_MAX_GB:-60}G" \
+      || bad "Downloads ${used_g}G 超过上限 → chi media clean（或 chi schedule 装自动清理）"
+  else
+    bad "$md/Downloads 不存在 → chi up media"
+  fi
+fi
+
 if [ -n "${CLASH_SUBSCRIPTION_URL:-}" ]; then
   log "回国分流"
   if nc -z 127.0.0.1 "${CLASH_PORT:-7890}" >/dev/null 2>&1; then

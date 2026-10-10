@@ -21,6 +21,7 @@ ports_for() {
     automation) echo "8004=5678" ;;
     vault)      echo "8005=8222" ;;
     photos)     echo "8006=2283" ;;
+    media)      echo "8009=8096 8010=8081" ;;
     *)          echo "" ;;
   esac
 }
@@ -36,6 +37,11 @@ case "$action" in
         ok "$s  https://$TS_FQDN$( [ "$https" = 443 ] || printf ':%s' "$https")  →  127.0.0.1:$local_port"
       done
     done
+    # 接入页面 + PAC（chi onboard 生成的静态文件）
+    if [ -f "$DATA_DIR/share/index.html" ]; then
+      sudo tailscale serve --bg --https=8008 "$DATA_DIR/share" >/dev/null
+      ok "share  https://$TS_FQDN:8008  →  $DATA_DIR/share（接入指南）"
+    fi
     # mihomo 面板（装了 chi proxy 才有）
     if [ -f "$(brew --prefix)/etc/mihomo/config.yaml" ]; then
       sudo tailscale serve --bg --https=8007 "http://127.0.0.1:9090" >/dev/null

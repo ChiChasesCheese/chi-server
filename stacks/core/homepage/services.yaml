@@ -38,6 +38,22 @@
         description: 密码管理
         server: local
         container: chi-vaultwarden
+    - Jellyfin:
+        icon: jellyfin.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8009
+        description: 影音库（投影 / 手机 / Mac）
+        server: local
+        container: chi-jellyfin
+    - MeTube:
+        icon: metube.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8010
+        description: 贴链接下载视频
+        server: local
+        container: chi-metube
+    - 接入指南:
+        icon: mdi-account-plus
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8008
+        description: 给自己和朋友的设备配置说明
     - Immich:
         icon: immich.png
         href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8006

@@ -20,20 +20,9 @@ TMPL="$CHI_ROOT/config/mihomo/config.yaml.tmpl"
 
 conf_dir() { echo "$(brew --prefix)/etc/mihomo"; }
 
-# 字面量替换。不用 sed：订阅地址里的 & / # 是 sed 的特殊字符；
-# 也不用 awk -v：它会把正则里的 \b 转义成退格符。值通过 ENVIRON 传进去，原样不动。
 render() {
-  R_SUB="$CLASH_SUBSCRIPTION_URL" R_FILTER="${CLASH_CN_FILTER:-.*}" R_SECRET="$CLASH_SECRET" R_PORT="$PORT" awk '
-    BEGIN { sub_url = ENVIRON["R_SUB"]; filter = ENVIRON["R_FILTER"]; secret = ENVIRON["R_SECRET"]; port = ENVIRON["R_PORT"] }
-    function rep(s, from, to,   i, out) {
-      out = ""
-      while ((i = index(s, from)) > 0) { out = out substr(s, 1, i - 1) to; s = substr(s, i + length(from)) }
-      return out s
-    }
-    { l = $0
-      l = rep(l, "__SUB_URL__", sub_url); l = rep(l, "__CN_FILTER__", filter)
-      l = rep(l, "__SECRET__", secret);   l = rep(l, "__PORT__", port)
-      print l }' "$TMPL"
+  TPL_SUB_URL="$CLASH_SUBSCRIPTION_URL" TPL_CN_FILTER="${CLASH_CN_FILTER:-.*}" \
+  TPL_SECRET="$CLASH_SECRET" TPL_PORT="$PORT" render_tmpl "$TMPL"
 }
 
 firewall_allow() {
@@ -45,8 +34,6 @@ firewall_allow() {
   sudo "$fw" --unblockapp "$bin" >/dev/null
   ok "防火墙已放行 $bin"
 }
-
-lan_ip() { ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "<Mac的局域网IP>"; }
 
 apply() {
   [ -n "${CLASH_SUBSCRIPTION_URL:-}" ] || die ".env 里 CLASH_SUBSCRIPTION_URL 为空：填你回国 VPN 的 Clash 订阅地址"

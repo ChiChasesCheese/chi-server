@@ -70,6 +70,23 @@ rand_hex() { openssl rand -hex "${1:-32}"; }
 # 不用 `tr </dev/urandom | head`：head 提前退出会让 tr 收到 SIGPIPE，在 pipefail 下整个脚本被杀
 rand_alnum() { openssl rand -base64 96 | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c1-"${1:-32}"; }
 
+# 渲染模板：把文件里的 __NAME__ 换成环境变量 TPL_NAME 的值（字面量替换）。
+# 用法：TPL_FOO=bar TPL_BAZ=qux render_tmpl file.tmpl > out
+# 不用 sed（& / # 是特殊字符），也不用 awk -v（会把 \b 之类转义掉）；值走 ENVIRON，原样不动。
+render_tmpl() {
+  awk '
+    function rep(s, from, to,   i, out) {
+      out = ""
+      while ((i = index(s, from)) > 0) { out = out substr(s, 1, i - 1) to; s = substr(s, i + length(from)) }
+      return out s
+    }
+    BEGIN { n = 0; for (k in ENVIRON) if (k ~ /^TPL_/) { n++; key[n] = "__" substr(k, 5) "__"; val[n] = ENVIRON[k] } }
+    { l = $0; for (j = 1; j <= n; j++) l = rep(l, key[j], val[j]); print l }' "$1"
+}
+
+lan_ip() { ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo ""; }
+ts_ip()  { tailscale ip -4 2>/dev/null | head -n1 || true; }
+
 # 所有 stack 名（stacks/ 下的目录）
 all_stacks() {
   local d

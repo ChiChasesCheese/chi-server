@@ -33,6 +33,7 @@ fill_if_empty() {
 }
 
 fill_if_empty DATA_DIR "$HOME/srv/data"
+fill_if_empty MEDIA_DIR "$HOME/srv/data/media"
 fill_if_empty RESTIC_PASSWORD_FILE "$HOME/.config/chi/restic-password"
 fill_if_empty OPEN_WEBUI_SECRET_KEY "$(rand_hex 32)"
 fill_if_empty N8N_ENCRYPTION_KEY "$(rand_hex 32)"
