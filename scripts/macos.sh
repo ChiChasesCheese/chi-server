@@ -82,6 +82,9 @@ sudo defaults write "$SU" AutomaticCheckEnabled -bool true
 sudo defaults write "$SU" AutomaticDownload -bool true
 sudo defaults write "$SU" CriticalUpdateInstall -bool true
 sudo defaults write "$SU" ConfigDataInstall -bool true
+# 关键的一行：不自动安装 macOS 更新（对应 系统设置 → 通用 → 软件更新 → 自动更新 →“安装 macOS 更新”）。
+# 上面两项（CriticalUpdateInstall = 安全响应、ConfigDataInstall = XProtect 等安全数据）保持自动。
+sudo defaults write "$SU" AutomaticallyInstallMacOSUpdates -bool false
 sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdateRestartRequired -bool false
 ok "系统更新：自动下载 + 自动装安全补丁，系统升级手动做（chi 文档里有带 FileVault 的重启方法）"
 

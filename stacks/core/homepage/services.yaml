@@ -67,3 +67,18 @@
         description: 相册
         server: local
         container: immich_server
+
+# public stack：经 Cloudflare Tunnel 对互联网公开（docs/public.md）。.env 里 PUBLIC_DOMAIN 为空时链接无效，正常
+- 公网:
+    - Hello（示例）:
+        icon: mdi-earth
+        href: https://{{HOMEPAGE_VAR_PUBLIC_DOMAIN}}
+        description: 公网链路验证（traefik/whoami），换成真正的应用后改这里
+        server: local
+        container: chi-public-hello
+    - Cloudflare Tunnel:
+        icon: cloudflare.png
+        href: https://dash.cloudflare.com/?to=/:account/tunnels
+        description: 隧道状态 / 公开的域名在 Cloudflare 后台管
+        server: local
+        container: chi-cloudflared

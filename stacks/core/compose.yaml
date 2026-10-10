@@ -19,6 +19,8 @@ services:
       HOMEPAGE_VAR_TS_FQDN: "${TS_FQDN:-localhost}"
       # Jellyfin 卡片上的片源数 / 正在播放（.env 里 JELLYFIN_API_KEY 为空时卡片会显示 API 错误，不影响其他）
       HOMEPAGE_VAR_JELLYFIN_KEY: "${JELLYFIN_API_KEY:-}"
+      # public stack（Cloudflare Tunnel）公开的域名，「公网」卡片用；没开 public 就留空
+      HOMEPAGE_VAR_PUBLIC_DOMAIN: "${PUBLIC_DOMAIN:-}"
       TZ: "${TZ}"
     volumes:
       - ./homepage:/app/config

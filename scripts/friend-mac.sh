@@ -193,7 +193,7 @@ cmd_add() {
     sudo sysadminctl -resetPasswordFor "$user" -newPassword - || true
     if ! has_password "$user"; then
       # 开着 FileVault 时要带管理员身份（"not permitted without secure token unlock"）
-      warn "需要用你（$OWNER）的管理员身份再试一次：先输他的新密码，再输你的登录密码"
+      warn "需要用你（${OWNER}）的管理员身份再试一次：先输他的新密码，再输你的登录密码"
       sudo sysadminctl -resetPasswordFor "$user" -newPassword - -adminUser "$OWNER" -adminPassword - || true
     fi
     if ! has_password "$user"; then
@@ -281,7 +281,7 @@ cmd_remove() {
     sudo sysadminctl -deleteUser "$user" || true
     if user_exists "$user"; then
       # 开着 FileVault 时会报 "not permitted without secure token unlock"，要用管理员身份再来一次
-      warn "需要用你（$OWNER）的管理员身份再试一次，下面会问你的登录密码"
+      warn "需要用你（${OWNER}）的管理员身份再试一次，下面会问你的登录密码"
       sudo sysadminctl -deleteUser "$user" -adminUser "$OWNER" -adminPassword - || true
     fi
     if user_exists "$user"; then

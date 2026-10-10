@@ -32,11 +32,25 @@ if is_macos; then
 
   df_pct="$(df -P / | awk 'NR==2 {gsub("%",""); print $5}')"
   [ "$df_pct" -lt 85 ] && ok "系统盘已用 ${df_pct}%" || bad "系统盘已用 ${df_pct}%（>85%）"
+
+  # 自动安装 macOS 更新 = 自己重启；开着 FileVault 就停在解锁界面
+  amu="$(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates 2>/dev/null || true)"
+  [ "$amu" = 1 ] && bad "macOS 更新会自动安装：会自动重启，FileVault 下服务全停 → chi bootstrap macos" \
+    || ok "macOS 更新不自动安装"
+
+  # shellcheck disable=SC2009  # 要的是产品名（ps 的 comm 是完整路径），不是 pid
+  rc="$(ps -Ao comm= | grep -ioE 'todesk|sunlogin|anydesk|teamviewer' | sort -fu | tr '\n' ' ' || true)"
+  [ -z "$rc" ] || warn "第三方远控在运行：${rc}—— 绕过了账号隔离和 Tailscale ACL，第三方账号可直接控制控制台会话；不用就卸载"
 else
   warn "不是 macOS，跳过系统检查"
 fi
 
 log "网络"
+if is_macos; then
+  dev="$(route -n get default 2>/dev/null | awk '/interface:/ {print $2}')"
+  port="$(networksetup -listallhardwareports 2>/dev/null | awk -v d="$dev" '/^Hardware Port:/ {p = $3} $2 == d {print p; exit}')"
+  [ "$port" = "Wi-Fi" ] && warn "默认路由走 Wi-Fi（${dev}）：服务器建议插网线"
+fi
 if have tailscale; then
   if tailscale status >/dev/null 2>&1; then
     ok "Tailscale 在线：$(tailscale ip -4 2>/dev/null | head -n1)"
@@ -101,6 +115,20 @@ if [ -f "$CHI_ROOT/.env" ] && case " $(resolve_stacks) " in *" media "*) true ;;
       || bad "Downloads ${used_g}G 超过上限 → chi media clean（或 chi schedule 装自动清理）"
   else
     bad "$md/Downloads 不存在 → chi up media"
+  fi
+fi
+
+if [ -f "$CHI_ROOT/.env" ] && case " $(resolve_stacks) " in *" public "*) true ;; *) false ;; esac; then
+  log "公网入口（Cloudflare Tunnel）"
+  if [ "$(docker inspect chi-cloudflared --format '{{.State.Running}}' 2>/dev/null || true)" != true ]; then
+    bad "chi-cloudflared 没在跑 → chi up public"
+  else
+    # 连上时打 "Registered tunnel connection"，之后稳定运行不再打，所以看最后一条注册/断线/报错是哪个
+    last="$(docker logs --tail 3000 chi-cloudflared 2>&1 | grep -E 'Registered tunnel connection|Unregistered|Connection terminated| ERR ' | tail -n1)"
+    case "$last" in
+      *"Registered tunnel connection"*) ok "cloudflared 隧道已连上 Cloudflare" ;;
+      *) bad "cloudflared 隧道没连上（token 错？出网不通？）→ chi logs public" ;;
+    esac
   fi
 fi
 
