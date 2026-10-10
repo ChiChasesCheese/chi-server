@@ -186,11 +186,16 @@ cmd_add() {
   is_admin "$user" && die "$user 是管理员。朋友账号必须是标准用户：系统设置 → 用户与群组 里取消「允许此用户管理这台电脑」后重跑"
 
   if has_password "$user"; then
-    ok "$user 已有登录密码（要改就跑：sudo sysadminctl -resetPasswordFor $user -newPassword -）"
+    ok "$user 已有登录密码（要改就跑：sudo sysadminctl -resetPasswordFor $user -newPassword - -adminUser $OWNER -adminPassword -）"
   else
     log "$user 还没有密码，现在设置（会提示输入新密码）"
     # sysadminctl 失败时退出码经常还是 0，所以以 AuthenticationAuthority 是否出现为准
     sudo sysadminctl -resetPasswordFor "$user" -newPassword - || true
+    if ! has_password "$user"; then
+      # 开着 FileVault 时要带管理员身份（"not permitted without secure token unlock"）
+      warn "需要用你（$OWNER）的管理员身份再试一次：先输他的新密码，再输你的登录密码"
+      sudo sysadminctl -resetPasswordFor "$user" -newPassword - -adminUser "$OWNER" -adminPassword - || true
+    fi
     if ! has_password "$user"; then
       warn "sysadminctl 没设成功，改用 dscl 再试一次"
       sudo dscl . -passwd "/Users/$user"
@@ -273,7 +278,12 @@ cmd_remove() {
     printf '要删除账号 %s 和他的家目录 %s（不可恢复）。输入用户名确认：' "$user" "$(user_home "$user")"
     read -r ans
     [ "$ans" = "$user" ] || die "没确认，取消"
-    sudo sysadminctl -deleteUser "$user"
+    sudo sysadminctl -deleteUser "$user" || true
+    if user_exists "$user"; then
+      # 开着 FileVault 时会报 "not permitted without secure token unlock"，要用管理员身份再来一次
+      warn "需要用你（$OWNER）的管理员身份再试一次，下面会问你的登录密码"
+      sudo sysadminctl -deleteUser "$user" -adminUser "$OWNER" -adminPassword - || true
+    fi
     if user_exists "$user"; then
       die "删除失败（他还登录着的话先踢掉会话再试）"
     fi
