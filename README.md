@@ -48,7 +48,7 @@ git clone https://github.com/chichasescheese/chi-service.git ~/chi-service
 cd ~/chi-service
 
 bin/chi init            # 生成 .env（随机密钥、时区、路径），然后打开 .env 看一遍
-bin/chi bootstrap       # Homebrew → 系统设置 → OrbStack → Tailscale → Ollama（会要 sudo）
+bin/chi bootstrap       # chifig 个人环境 → Homebrew → 系统设置 → OrbStack → Tailscale → Ollama（会要 sudo）
 bin/chi init            # Tailscale 登录后再跑一次，自动填 TS_FQDN
 bin/chi up              # 启动 .env 里 CHI_STACKS 列出的服务
 bin/chi serve           # 通过 Tailscale 以 HTTPS 暴露

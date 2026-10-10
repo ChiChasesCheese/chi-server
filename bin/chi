@@ -12,7 +12,7 @@ usage() {
 
 装机（按顺序，都可重复执行）
   init                  生成 .env（自动填时区、随机密钥），已存在则只补缺的键
-  bootstrap [步骤...]   装机：brew macos runtime tailscale ollama（默认全跑）
+  bootstrap [步骤...]   装机：dotfiles brew macos runtime tailscale ollama（默认全跑）
   doctor                体检：电源、防火墙、SSH、FileVault、Tailscale、Docker、各服务
 
 服务（stack = stacks/ 下的一个目录；不写就是 .env 里 CHI_STACKS 的全部）

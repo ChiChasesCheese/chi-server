@@ -5,7 +5,30 @@ set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 require_macos
 
-STEPS_ALL="brew macos runtime tailscale ollama"
+STEPS_ALL="dotfiles brew macos runtime tailscale ollama"
+
+step_dotfiles() {
+  # 个人开发环境交给 chifig（chezmoi 管的 zsh / git / ghostty / tmux / 键盘映射…），这里只负责调用它。
+  # 已经装过（有 chezmoi 源目录）就只做 chezmoi update。
+  if command -v chezmoi >/dev/null 2>&1 && [ -d "$(chezmoi source-path 2>/dev/null)" ]; then
+    log "chifig 已安装：chezmoi update（先看差异：chezmoi diff）"
+    chezmoi update
+    return 0
+  fi
+  log "chifig：第一次接管这台机器，先备份会被覆盖的 shell / git 配置"
+  local b
+  b="$HOME/.local/state/chifig-backup/$(date +%F)"
+  mkdir -p "$b"
+  local f
+  for f in .zshenv .zshrc .zprofile .gitconfig .tmux.conf .condarc; do
+    if [ -e "$HOME/$f" ]; then cp -p "$HOME/$f" "$b/"; fi
+  done
+  cp -R "$HOME/.config/zsh" "$HOME/.config/git" "$HOME/.config/tmux" "$HOME/.config/ghostty" "$b/" 2>/dev/null || true
+  ok "备份在 $b"
+  log "安装 chifig（会问 git 身份和模块开关；Windows 键盘想要 Alt→Cmd / Win→Ctrl 就把 modules.keyboard 选 true）"
+  CHIFIG_REF="${CHIFIG_REF:-main}" \
+    sh -c "$(curl -fsSL "https://raw.githubusercontent.com/ChiChasesCheese/chifig/${CHIFIG_REF:-main}/bootstrap.sh")"
+}
 
 step_brew() {
   log "Homebrew + Brewfile"
@@ -99,7 +122,7 @@ load_env
 steps="${*:-$STEPS_ALL}"
 for s in $steps; do
   case "$s" in
-    brew|macos|runtime|tailscale|ollama) "step_$s" ;;
+    dotfiles|brew|macos|runtime|tailscale|ollama) "step_$s" ;;
     *) die "未知步骤：$s（可选：$STEPS_ALL）" ;;
   esac
 done

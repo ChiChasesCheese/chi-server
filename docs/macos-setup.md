@@ -56,6 +56,10 @@ bin/chi bootstrap
 - 有跳板设备 + UPS，或者上面放了你特别在意的东西 → **B**。
 - 不管选哪个，**都做好 `chi backup`**——磁盘坏和机器丢比黑客常见得多。
 
+## 2.5 个人开发环境（chifig）
+
+`chi bootstrap` 的第一步 `dotfiles` 会调用你的 [chifig](https://github.com/ChiChasesCheese/chifig)（chezmoi）：zsh / git / tmux / Ghostty / mise / uv 等，以及 `keyboard` 模块（Windows 键盘 Alt→Cmd、Win→Ctrl）。它会先把现有的 `.zshrc`、`.gitconfig` 等备份到 `~/.local/state/chifig-backup/<日期>/` 再覆盖。以后更新：`chezmoi update` 或再跑一次 `chi bootstrap dotfiles`。
+
 ## 3. bootstrap 之后
 
 - [ ] Tailscale 管理后台：这台机器 → **Disable key expiry**（否则 180 天后掉线，而那时你多半不在家）。
