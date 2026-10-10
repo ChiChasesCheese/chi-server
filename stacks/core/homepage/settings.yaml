@@ -1,0 +1,12 @@
+# https://gethomepage.dev/configs/settings/
+title: chi-service
+theme: dark
+color: slate
+headerStyle: clean
+layout:
+  核心:
+    style: row
+    columns: 3
+  应用:
+    style: row
+    columns: 4

@@ -1,0 +1,19 @@
+// chi-service PAC：只有大陆视频/音乐站点走家里 Mac mini 的回国代理，其他全部直连。
+// 由 chi onboard 生成。需要你的设备连着 Tailscale（代理地址是 Mac mini 的 Tailscale IP）。
+function FindProxyForURL(url, host) {
+  var cn = [
+    "bilibili.com", "bilibili.cn", "bilivideo.com", "bilivideo.cn", "hdslb.com",
+    "biliapi.com", "biliapi.net", "b23.tv", "biligame.com", "acgvideo.com",
+    "iqiyi.com", "iqiyipic.com", "71.am", "qy.net",
+    "youku.com", "ykimg.com", "tudou.com",
+    "v.qq.com", "video.qq.com", "y.qq.com",
+    "music.163.com", "music.126.net",
+    "mgtv.com", "hitv.com"
+  ];
+  for (var i = 0; i < cn.length; i++) {
+    if (host === cn[i] || dnsDomainIs(host, "." + cn[i])) {
+      return "PROXY __TS_IP__:__PORT__; DIRECT";
+    }
+  }
+  return "DIRECT";
+}

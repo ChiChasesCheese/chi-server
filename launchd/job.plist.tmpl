@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 通用 launchd 任务模板：scripts/schedule.sh 填好双下划线占位符后装到 ~/Library/LaunchAgents/ -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>__LABEL__</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__CHI_ROOT__/bin/chi</string>
+    <string>__CMD__</string>
+    <string>__SUB__</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- launchd 的 PATH 极简，要手动补上 Homebrew 和 OrbStack -->
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/opt/homebrew/sbin:__HOME__/.orbstack/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>__HOUR__</integer>
+    <key>Minute</key>
+    <integer>__MINUTE__</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/chi-service/__NAME__.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/chi-service/__NAME__.log</string>
+  <!-- 低优先级，别跟服务抢 CPU / IO -->
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>Nice</key>
+  <integer>10</integer>
+</dict>
+</plist>

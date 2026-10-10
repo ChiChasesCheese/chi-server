@@ -1,0 +1,84 @@
+# https://gethomepage.dev/configs/services/
+# href 用的是 `chi serve` 暴露的 Tailscale HTTPS 端口（端口表见 scripts/tailscale-serve.sh）。
+# 没启用的 stack 卡片会显示为未运行，正常；不想看到就删掉对应条目。
+- 核心:
+    - Uptime Kuma:
+        icon: uptime-kuma.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8001
+        description: 监控与告警
+        server: local
+        container: chi-uptime-kuma
+    - 回国分流:
+        icon: mdi-earth-arrow-right
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8007/ui
+        description: mihomo 面板（chi proxy）
+    - Dozzle:
+        icon: dozzle.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8002
+        description: 容器日志
+        server: local
+        container: chi-dozzle
+
+- 应用:
+    - Open WebUI:
+        icon: open-webui.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8003
+        description: 本地大模型聊天（Ollama）
+        server: local
+        container: chi-open-webui
+    - n8n:
+        icon: n8n.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8004
+        description: 自动化工作流
+        server: local
+        container: chi-n8n
+    - Vaultwarden:
+        icon: vaultwarden.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8005
+        description: 密码管理
+        server: local
+        container: chi-vaultwarden
+    - Jellyfin:
+        icon: jellyfin.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8009
+        description: 影音库（投影 / 手机 / Mac）
+        server: local
+        container: chi-jellyfin
+        widget:
+          type: jellyfin
+          version: 2   # Jellyfin 10.11+ 去掉了 /emby 前缀和 ?api_key=，要用新版接口
+          url: http://host.docker.internal:8096
+          key: "{{HOMEPAGE_VAR_JELLYFIN_KEY}}"
+          enableBlocks: true
+          enableNowPlaying: true
+    - MeTube:
+        icon: metube.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8010
+        description: 贴链接下载视频
+        server: local
+        container: chi-metube
+    - 接入指南:
+        icon: mdi-account-plus
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8008
+        description: 给自己和朋友的设备配置说明
+    - Immich:
+        icon: immich.png
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8006
+        description: 相册
+        server: local
+        container: immich_server
+
+# public stack：经 Cloudflare Tunnel 对互联网公开（docs/public.md）。.env 里 PUBLIC_DOMAIN 为空时链接无效，正常
+- 公网:
+    - Hello（示例）:
+        icon: mdi-earth
+        href: https://{{HOMEPAGE_VAR_PUBLIC_DOMAIN}}
+        description: 公网链路验证（traefik/whoami），换成真正的应用后改这里
+        server: local
+        container: chi-public-hello
+    - Cloudflare Tunnel:
+        icon: cloudflare.png
+        href: https://dash.cloudflare.com/?to=/:account/tunnels
+        description: 隧道状态 / 公开的域名在 Cloudflare 后台管
+        server: local
+        container: chi-cloudflared

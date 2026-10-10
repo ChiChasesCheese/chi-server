@@ -1,0 +1,6 @@
+# https://gethomepage.dev/configs/bookmarks/
+- 管理:
+    - Tailscale:
+        - href: https://login.tailscale.com/admin/machines
+    - chi-service 仓库:
+        - href: https://github.com/chichasescheese/chi-service

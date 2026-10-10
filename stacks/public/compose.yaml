@@ -1,0 +1,59 @@
+# public：通过 Cloudflare Tunnel 把“挑出来的”网页/API 公开到互联网（详细说明见 docs/public.md）
+#   cloudflared  隧道连接器：主动连出到 Cloudflare，不需要路由器端口转发，家里 IP 不暴露
+#   hello        占位示例（traefik/whoami），用来验证整条链路；有真正的应用后可以删掉
+#
+# 和其他 stack 不一样的地方（有意为之）：
+#   - 没有任何 ports：公网流量只从 cloudflared 进来，按服务名（http://hello:80）转给应用，本机端口一个都不占
+#   - cloudflared 只在 .env 里填了 CF_TUNNEL_TOKEN 时才启动（pre-up.sh 生成 COMPOSE_PROFILES=tunnel）
+#   - 不挂 docker.sock，不加 extra_hosts
+#
+# 隔离（实测过，OrbStack）：
+#   普通 docker 网络里的容器能通过 host.docker.internal 访问宿主机上绑在 127.0.0.1 的端口
+#   （Kuma 3001、Dozzle 8080……都能访问到）。也就是说“绑 127.0.0.1”只防局域网，不防同机容器。
+#   所以应用放在 internal 网络 public 里：没有默认网关，解析不到 host.docker.internal，也出不了外网。
+#   只有 cloudflared 额外接 egress 网络（它必须连出到 Cloudflare）。
+#   代价：应用自己不能访问外网。确实需要的（调第三方 API 之类）给它加上 egress 网络——
+#   那它就和普通容器一样能摸到宿主机的 127.0.0.1 端口了，被攻破时这些管理界面就是下一跳。
+#   验证命令见 docs/public.md「隔离自检」。
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: chi-cloudflared
+    restart: unless-stopped
+    # 没填 token 时不启动；pre-up.sh 根据 CF_TUNNEL_TOKEN 写 stacks/public/.env 里的 COMPOSE_PROFILES
+    profiles: ["tunnel"]
+    # 镜像的 entrypoint 已经是 `cloudflared --no-autoupdate`（容器靠换镜像升级：chi update）
+    command: ["tunnel", "run"]
+    environment:
+      # 远程管理型隧道：路由（哪个域名转到哪个服务）在 Cloudflare 后台配，本机只需要 token
+      TUNNEL_TOKEN: "${CF_TUNNEL_TOKEN:-}"
+      # /ready 和 /metrics 只听容器内回环：同网络的应用（可能被攻破）够不到 /metrics 和调试接口
+      TUNNEL_METRICS: "127.0.0.1:2000"
+      TZ: "${TZ}"
+    healthcheck:
+      # 镜像是 distroless（没有 shell/curl/wget），用 exec 形式调自带的 `cloudflared tunnel ready`：
+      # 它请求 TUNNEL_METRICS 上的 /ready，至少有一条到 Cloudflare 的连接时返回 0
+      test: ["CMD", "cloudflared", "tunnel", "ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - public
+      - egress
+
+  hello:
+    image: traefik/whoami:latest
+    container_name: chi-public-hello
+    restart: unless-stopped
+    # Cloudflare 后台 Public Hostname 的 Service 填 http://hello:80
+    networks:
+      - public
+
+networks:
+  # 公开应用所在的网络：internal = 无网关、无外网、碰不到宿主机
+  public:
+    internal: true
+  # 只给 cloudflared（以及确实需要外网的应用）用
+  egress: {}

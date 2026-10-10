@@ -1,0 +1,25 @@
+# automation：n8n —— 自托管的 Zapier。定时任务、Webhook、调 API、调本机 Ollama、发通知……
+# 这是“中枢”的核心：别的服务的事件都可以汇到这里再分发。
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: chi-n8n
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:5678:5678"
+    environment:
+      N8N_HOST: "${TS_FQDN:-localhost}"
+      N8N_PROTOCOL: https
+      # 走 tailscale serve 的 HTTPS 端口，见 scripts/tailscale-serve.sh
+      WEBHOOK_URL: "https://${TS_FQDN:-localhost}:8004/"
+      N8N_PROXY_HOPS: "1"
+      # 加密数据库里存的各种凭据。丢了它 = 所有已保存的凭据作废。已在 .env 里，会随 .env 一起需要你单独保管
+      N8N_ENCRYPTION_KEY: "${N8N_ENCRYPTION_KEY}"
+      N8N_RUNNERS_ENABLED: "true"
+      GENERIC_TIMEZONE: "${TZ}"
+      TZ: "${TZ}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${DATA_DIR}/n8n:/home/node/.n8n
