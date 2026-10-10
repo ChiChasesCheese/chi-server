@@ -91,7 +91,9 @@ chi media sub check      # 立刻查一遍
 
 我按 **onn 4K Pro（Walmart）** 写的——如果你的是别的型号告诉我。它支持 AV1 / VP9 / HEVC / H.264 和 Dolby Vision，YouTube/B 站下载的格式基本都能直接播。
 
-1. Mac mini 在路由器里**固定 IP**（Xfinity App → 设备 → 预留 IP），否则哪天 IP 变了盒子连不上
+1. 固定 IP（2026-10 已配好）：Mac mini **10.0.0.10**、onn **10.0.0.11**、Z9X **10.0.0.12**，都在路由器后台 `http://10.0.0.1` → Connected Devices 里预留了，备注写着设备名。
+   - Mac 还在本机把 Wi‑Fi 设成了“手动 IP + DHCP 路由器”（`networksetup -setmanualwithdhcprouter Wi-Fi 10.0.0.10`）：这台 Xfinity 网关对在线设备的预留经常不生效（页面显示和实际租约对不上），本机写死更可靠。换路由器或网段时记得改回 `networksetup -setdhcp Wi-Fi`
+   - Mac 的 Wi‑Fi 要用真实 MAC（系统设置 → Wi‑Fi → 详细信息 → 私有 Wi‑Fi 地址：关闭），否则 MAC 一轮换，路由器就当成新设备、IP 也跟着变
 2. 盒子上 Play 商店装 **Jellyfin**（官方 Android TV 版）
 3. 服务器地址：`http://<Mac的局域网IP>:8096`（盒子在局域网里，不需要 Tailscale）
 4. 网络：它的网口只有 **百兆**，4K 高码率片子用 Wi‑Fi 6 反而更快；1080p 两者都够

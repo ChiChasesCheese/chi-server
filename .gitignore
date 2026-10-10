@@ -18,3 +18,4 @@ stacks/core/homepage/custom.css
 stacks/core/homepage/custom.js
 stacks/core/homepage/kubernetes.yaml
 stacks/core/homepage/proxmox.yaml
+.playwright-mcp/
