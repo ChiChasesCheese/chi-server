@@ -37,10 +37,6 @@ if is_macos; then
   amu="$(defaults read /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallMacOSUpdates 2>/dev/null || true)"
   [ "$amu" = 1 ] && bad "macOS 更新会自动安装：会自动重启，FileVault 下服务全停 → chi bootstrap macos" \
     || ok "macOS 更新不自动安装"
-
-  # shellcheck disable=SC2009  # 要的是产品名（ps 的 comm 是完整路径），不是 pid
-  rc="$(ps -Ao comm= | grep -ioE 'todesk|sunlogin|anydesk|teamviewer' | sort -fu | tr '\n' ' ' || true)"
-  [ -z "$rc" ] || warn "第三方远控在运行：${rc}—— 绕过了账号隔离和 Tailscale ACL，第三方账号可直接控制控制台会话；不用就卸载"
 else
   warn "不是 macOS，跳过系统检查"
 fi
