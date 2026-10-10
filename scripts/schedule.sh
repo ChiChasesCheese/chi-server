@@ -5,6 +5,7 @@
 # 任务：
 #   backup       每天 BACKUP_HOUR:17   chi backup run
 #   media-clean  每天 05:47            chi media clean（只在启用了 media stack 时安装）
+#   media-iptv   每天 05:27            chi media iptv（同上；直播源经常换地址，每天重新试播一遍）
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 require_macos
@@ -35,13 +36,13 @@ case "${1:-install}" in
     mkdir -p "$AGENTS" "$HOME/Library/Logs/chi-service"
     install_job backup backup run "${BACKUP_HOUR:-4}" 17
     case " $(resolve_stacks) " in
-      *" media "*) install_job media-clean media clean 5 47 ;;
-      *) remove_job media-clean ;;
+      *" media "*) install_job media-clean media clean 5 47; install_job media-iptv media iptv 5 27 ;;
+      *) remove_job media-clean; remove_job media-iptv ;;
     esac
     log "手动触发测试：launchctl kickstart -k gui/$(id -u)/com.chi-service.backup"
     ;;
   uninstall)
-    remove_job backup; remove_job media-clean
+    remove_job backup; remove_job media-clean; remove_job media-iptv
     ok "已卸载全部定时任务"
     ;;
   *) die "用法: chi schedule [install|uninstall]" ;;

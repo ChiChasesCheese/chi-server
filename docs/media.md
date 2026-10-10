@@ -57,11 +57,35 @@ bin/chi schedule        # 装每日自动清理
 | 网页 | `https://<TS_FQDN>:8010` 贴链接；支持播放列表、频道订阅（MeTube 自带 Subscriptions） |
 | iPhone 分享菜单 | 快捷指令，步骤在接入页面（`chi onboard` 生成）里 |
 | AI agent | 任何能发 HTTP 的 agent / n8n：`POST http://127.0.0.1:8081/add`，JSON `{"url": "...", "quality": "1080"}` |
+| **订阅（追剧）** | `chi media sub add <频道或播放列表> [文件夹] [标题正则]`，每 6 小时查一次，出新集自动下 |
+
+### 订阅：追剧不用手动贴链接
+
+腾讯视频、爱奇艺、优酷、芒果、华策、CCTV 在 YouTube 上都有官方频道，很多剧免费放全集。订阅**某部剧的播放列表**最合适；订阅整个频道要配标题正则，否则花絮、预告一起下，60G 几天就满。
+
+```bash
+chi media sub add 'https://www.youtube.com/playlist?list=PL…' 某某剧            # 一部剧的播放列表
+chi media sub add 'https://www.youtube.com/@CCTVCH/videos' 新闻 '新闻联播'      # 整个频道，只要标题含“新闻联播”的
+chi media sub            # 列表（含 id）
+chi media sub rm <id>    # 退订
+chi media sub check      # 立刻查一遍
+```
+
+加订阅时现有视频都算“已看过”，**只下之后的新视频**。想补旧集，把单集链接 `chi fetch` 进去。B 站的 UP 主 / 合集同样能订阅（大陆限定内容要先装好 `chi proxy`）。
 
 - **B 站大陆限定内容**：装了 `chi proxy` 后，`chi up media` 会自动让 MeTube 走 mihomo，B 站自动走回国、YouTube 直连。高画质/大会员内容需要在 MeTube 网页里上传 B 站的 cookies 文件。
 - **yt-dlp 每天自动更新到 nightly**（`YTDL_NIGHTLY_UPDATE_TIME`）。YouTube 隔三差五改反爬，旧版本很快失效——下载突然全挂，先等第二天自动更新，或 `chi restart media`。
 - 下载完 Jellyfin 默认 12 小时内会扫到；想马上看到：`chi media scan`，或 Jellyfin 后台“扫描媒体库”。
 - 版权说实话：YouTube 条款不允许下载；自己看属于灰色地带，搬运/传播不行。
+
+## 直播电视：央视 / 卫视
+
+`chi media iptv` 从 [iptv-org](https://github.com/iptv-org/iptv) 拉中国频道的公开直播源，**逐个试播，只留从这台 Mac 真能播的**（2026-10 实测 147 个里能播 64 个：CCTV1–17 大部分、湖南/东方/广东/安徽/河北卫视、风云剧场等），接进 Jellyfin 的「直播电视」。`chi schedule` 装了每天 05:27 自动重测（公开源经常换地址）。
+
+- onn 上：Jellyfin App → 直播电视 → 频道。没有节目单（EPG），只能看“现在在播什么”
+- 江苏、浙江、北京卫视等在列表里但限大陆 IP，Jellyfin 直连播不了。这类不值得为它们让 Jellyfin 全部走代理；想看用盒子上的回国 App
+- 想加别的源：`.env` 里 `IPTV_M3U_URLS='url1 url2'`（空格分隔），然后 `chi media iptv`
+- 公开源由各电视台自己的 CDN 提供，iptv-org 只做收集，不托管视频
 
 ## onn 4K Pro 盒子
 

@@ -26,7 +26,7 @@ usage() {
 
 媒体 / 分享
   fetch <url> [文件夹]   交给 MeTube 下载到媒体库（YouTube、B 站等 yt-dlp 支持的站点）
-  media [usage|clean|scan]   媒体库占用 / 按上限清理旧下载 / 让 Jellyfin 重扫
+  media [usage|clean|scan|sub|iptv]  媒体库占用 / 清理 / 重扫 / 追剧订阅 / 直播频道
   onboard               生成给自己和朋友的接入页面（tailnet 内 :8008）+ 可直接转发的邀请文字
 
 回国 / 电视（见 docs/china-media.md）

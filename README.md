@@ -73,7 +73,7 @@ bin/chi doctor          # 体检，全绿就完事
 | `chi schedule [install\|uninstall]` | launchd 定时备份 |
 | `chi doctor` | 只读体检 |
 | `chi fetch <url>` | 下载视频到媒体库（YouTube、B 站等） |
-| `chi media [usage\|clean\|scan]` | 媒体库占用 / 按上限清理 / Jellyfin 重扫 |
+| `chi media [usage\|clean\|scan\|sub\|iptv]` | 媒体库占用 / 清理 / 重扫 / 追剧订阅 / 央视卫视直播 |
 | `chi onboard` | 生成给自己和朋友的接入页面 + 邀请文字 |
 | `chi proxy [install\|apply\|test\|status]` | 回国分流：只有大陆视频站走你的回国 VPN（[china-media](docs/china-media.md)） |
 | `chi tv [connect\|install\|proxy]` | adb 远程管理 Google TV 盒子：侧载 App、设代理 |
