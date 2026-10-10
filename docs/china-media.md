@@ -59,7 +59,18 @@ bin/chi serve           # 管理面板 https://<TS_FQDN>:8007/ui
 
 ## 3. 让设备用上
 
-### Google TV 盒子（推荐的主力）
+### onn 盒子：实际在用的是穿梭 TV 版（2026-10 配好）
+
+穿梭不给 Clash 订阅，所以 onn 不走 Mac 上的 mihomo，而是自己跑穿梭：
+- 穿梭 TV（Play 商店 `com.fobwifi.transocks.tv`）登录后默认智能分流：实测 B 站看到「中国 上海 电信」，美国网站仍从家里 Comcast 直连；局域网 10.x 不进隧道，Jellyfin 不受影响
+- `chi tv vpn <onn的IP> com.fobwifi.transocks.tv` 设成始终开启，重启后自动连（没开 lockdown，穿梭挂了也能直连上网）
+- B 站：云视听小电视（`com.xiaodianshi.tv.yst`），APK 来自 B 站官方 `dl.hdslb.com/mobile/latest/android_tv_yst/iBiliTV-master.apk`。它面向老 Android，`chi tv install` 会带兼容参数，并在 Play 保护拦截时提示你点「仍然安装」
+- 穿梭官网的 TV 版 APK（4.0.8）在 Android 14 上装不了，用 Play 商店版
+- 侧载的 App 不会自动更新；云视听小电视过几个月重新下载 `chi tv install` 一次
+
+下面是 mihomo 方案（给 Clash 订阅类服务用），保留备查。
+
+### Google TV 盒子（mihomo 方案）
 
 ```bash
 # 盒子上先开开发者选项和 USB 调试（chi tv 不带参数会打印步骤）
