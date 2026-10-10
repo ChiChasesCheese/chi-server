@@ -95,7 +95,7 @@ step_tailscale() {
   sleep 2
   if ! tailscale status >/dev/null 2>&1; then
     log "打开下面的链接登录你的 Tailscale 账号"
-    sudo tailscale up --hostname="${CHI_HOSTNAME:-chi-mini}"
+    sudo_ts up --hostname="${CHI_HOSTNAME:-chi-mini}"
   fi
   ok "Tailscale 已上线：$(tailscale ip -4 2>/dev/null | head -n1)"
   warn "去 https://login.tailscale.com/admin/machines 对这台机器点 'Disable key expiry'，否则 180 天后掉线"

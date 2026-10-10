@@ -85,6 +85,15 @@ render_tmpl() {
 }
 
 lan_ip() { ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo ""; }
+# chi 用的是 brew 装的 tailscaled（系统守护进程，开机不用登录就上线）。Mac 上如果还装着 Tailscale.app，
+# 不带 --socket 的 CLI 会优先连 App 的实例，读到的是另一个节点（常常是 stopped），所以统一显式指定 socket。
+TS_SOCK=/var/run/tailscaled.socket
+if is_macos; then
+  tailscale()  { command tailscale --socket="$TS_SOCK" "$@"; }
+  sudo_ts()    { sudo "$(command -v tailscale)" --socket="$TS_SOCK" "$@"; }
+else
+  sudo_ts()    { sudo "$(command -v tailscale)" "$@"; }
+fi
 ts_ip()  { tailscale ip -4 2>/dev/null | head -n1 || true; }
 
 # 所有 stack 名（stacks/ 下的目录）

@@ -44,6 +44,13 @@
         description: 影音库（投影 / 手机 / Mac）
         server: local
         container: chi-jellyfin
+        widget:
+          type: jellyfin
+          version: 2   # Jellyfin 10.11+ 去掉了 /emby 前缀和 ?api_key=，要用新版接口
+          url: http://host.docker.internal:8096
+          key: "{{HOMEPAGE_VAR_JELLYFIN_KEY}}"
+          enableBlocks: true
+          enableNowPlaying: true
     - MeTube:
         icon: metube.png
         href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8010

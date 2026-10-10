@@ -33,22 +33,22 @@ case "$action" in
     for s in $(resolve_stacks); do
       for pair in $(ports_for "$s"); do
         https="${pair%%=*}"; local_port="${pair##*=}"
-        sudo tailscale serve --bg --https="$https" "http://127.0.0.1:$local_port" >/dev/null
+        sudo_ts serve --bg --https="$https" "http://127.0.0.1:$local_port" >/dev/null
         ok "$s  https://$TS_FQDN$( [ "$https" = 443 ] || printf ':%s' "$https")  →  127.0.0.1:$local_port"
       done
     done
     # 接入页面 + PAC（chi onboard 生成的静态文件）
     if [ -f "$DATA_DIR/share/index.html" ]; then
-      sudo tailscale serve --bg --https=8008 "$DATA_DIR/share" >/dev/null
+      sudo_ts serve --bg --https=8008 "$DATA_DIR/share" >/dev/null
       ok "share  https://$TS_FQDN:8008  →  $DATA_DIR/share（接入指南）"
     fi
     # mihomo 面板（装了 chi proxy 才有）
     if [ -f "$(brew --prefix)/etc/mihomo/config.yaml" ]; then
-      sudo tailscale serve --bg --https=8007 "http://127.0.0.1:9090" >/dev/null
+      sudo_ts serve --bg --https=8007 "http://127.0.0.1:9090" >/dev/null
       ok "proxy  https://$TS_FQDN:8007/ui  →  127.0.0.1:9090（面板里后端填 https://$TS_FQDN:8007，密钥是 .env 的 CLASH_SECRET）"
     fi
     ;;
   status) tailscale serve status ;;
-  reset)  sudo tailscale serve reset && ok "已清空所有 serve 规则" ;;
+  reset)  sudo_ts serve reset && ok "已清空所有 serve 规则" ;;
   *) die "用法: chi serve [apply|status|reset]" ;;
 esac

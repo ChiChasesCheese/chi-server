@@ -17,6 +17,8 @@ services:
       HOMEPAGE_ALLOWED_HOSTS: "${TS_FQDN:-localhost},localhost:3000,127.0.0.1:3000,${CHI_HOSTNAME:-chi-mini}.local:3000"
       # 在 homepage/*.yaml 里用 {{HOMEPAGE_VAR_TS_FQDN}} 引用
       HOMEPAGE_VAR_TS_FQDN: "${TS_FQDN:-localhost}"
+      # Jellyfin 卡片上的片源数 / 正在播放（.env 里 JELLYFIN_API_KEY 为空时卡片会显示 API 错误，不影响其他）
+      HOMEPAGE_VAR_JELLYFIN_KEY: "${JELLYFIN_API_KEY:-}"
       TZ: "${TZ}"
     volumes:
       - ./homepage:/app/config
