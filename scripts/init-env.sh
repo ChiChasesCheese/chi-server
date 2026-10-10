@@ -47,8 +47,10 @@ fi
 if have tailscale; then
   fqdn="$(tailscale status --json 2>/dev/null | jq -r '.Self.DNSName // empty' 2>/dev/null | sed 's/\.$//' || true)"
   if [ -n "${fqdn:-}" ]; then
+    old_fqdn="$(get_kv "$ENV" TS_FQDN)"
     set_kv "$ENV" TS_FQDN "$fqdn"
     ok "TS_FQDN=$fqdn"
+    [ "$old_fqdn" != "$fqdn" ] && warn "TS_FQDN 变了：已经在跑的容器要 chi up 重建一次才会用上新域名"
   else
     warn "Tailscale 还没登录，TS_FQDN 先空着（跑完 chi bootstrap tailscale 后再 chi init 一次）"
   fi

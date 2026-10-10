@@ -68,6 +68,16 @@ if docker_ready; then
       elif [ -n "$unhealthy" ]; then bad "${s}：不健康 → ${unhealthy}（chi logs ${s}）"
       else ok "${s}：$running"; fi
     done
+    # .env 里的 TS_FQDN 改过（比如先 chi up 后才登录 Tailscale）但容器没重建，会还拿着 localhost
+    if [ -n "${TS_FQDN:-}" ]; then
+      stale=""
+      for c in $(docker ps --filter "name=^chi-" --format '{{.Names}}'); do
+        docker inspect "$c" --format '{{range .Config.Env}}{{println .}}{{end}}' \
+          | grep -qE '^(WEBUI_URL|JELLYFIN_PublishedServerUrl|N8N_HOST|WEBHOOK_URL|DOMAIN|HOMEPAGE_VAR_TS_FQDN)=(https://)?localhost' \
+          && stale="$stale$c "
+      done
+      [ -z "$stale" ] && ok "容器里的域名和 TS_FQDN 一致" || bad "这些容器还是旧域名（localhost）：${stale}→ chi up"
+    fi
   fi
 else
   bad "docker 连不上（OrbStack/Colima 没启动？）"
