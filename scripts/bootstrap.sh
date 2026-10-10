@@ -123,7 +123,7 @@ steps="${*:-$STEPS_ALL}"
 for s in $steps; do
   case "$s" in
     dotfiles|brew|macos|runtime|tailscale|ollama) "step_$s" ;;
-    *) die "未知步骤：$s（可选：$STEPS_ALL）" ;;
+    *) die "未知步骤：${s}（可选：${STEPS_ALL}）" ;;
   esac
 done
 

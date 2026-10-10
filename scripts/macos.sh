@@ -30,7 +30,7 @@ if [ -n "${CHI_HOSTNAME:-}" ]; then
     sudo scutil --set ComputerName "$CHI_HOSTNAME"
     sudo scutil --set HostName "$CHI_HOSTNAME"
     sudo scutil --set LocalHostName "$CHI_HOSTNAME"
-    ok "主机名 → $CHI_HOSTNAME（局域网可用 $CHI_HOSTNAME.local）"
+    ok "主机名 → ${CHI_HOSTNAME}（局域网可用 $CHI_HOSTNAME.local）"
   fi
 fi
 
@@ -68,7 +68,7 @@ PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin no
 EOF
-    sudo sshd -t && ok "SSH 已改为仅密钥登录（$DROPIN）"
+    sudo sshd -t && ok "SSH 已改为仅密钥登录（${DROPIN}）"
   else
     warn "$HOME/.ssh/authorized_keys 是空的，不开仅密钥登录（会把自己锁外面）。先从你的电脑 ssh-copy-id"
   fi

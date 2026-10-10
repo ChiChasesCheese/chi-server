@@ -41,7 +41,7 @@ fill_if_empty CLASH_SECRET "$(rand_hex 16)"
 
 if is_macos && [ -L /etc/localtime ]; then
   tz="$(readlink /etc/localtime | sed 's#.*/zoneinfo/##')"
-  [ -n "$tz" ] && set_kv "$ENV" TZ "$tz" && ok "TZ=$tz（读自系统）"
+  [ -n "$tz" ] && set_kv "$ENV" TZ "$tz" && ok "TZ=${tz}（读自系统）"
 fi
 
 if have tailscale; then
@@ -65,4 +65,4 @@ if [ ! -f "$pwfile" ]; then
 fi
 
 mkdir -p "$(get_kv "$ENV" DATA_DIR)"
-ok ".env 就绪：$ENV（改完记得 chi up）"
+ok ".env 就绪：${ENV}（改完记得 chi up）"

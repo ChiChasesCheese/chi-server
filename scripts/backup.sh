@@ -26,7 +26,7 @@ case "$action" in
   snapshots) restic snapshots ;;
   check)     restic check --read-data-subset=5% ;;
   run)
-    restic cat config >/dev/null 2>&1 || die "仓库不可用：$RESTIC_REPOSITORY（外置盘挂上了吗？没 init 就先 chi backup init）"
+    restic cat config >/dev/null 2>&1 || die "仓库不可用：${RESTIC_REPOSITORY}（外置盘挂上了吗？没 init 就先 chi backup init）"
     require_docker
 
     stacks="$(resolve_stacks)"

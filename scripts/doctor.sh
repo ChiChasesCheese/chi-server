@@ -64,9 +64,9 @@ if docker_ready; then
     for s in $(resolve_stacks); do
       running="$(docker ps --filter "label=com.docker.compose.project=chi-$s" --format '{{.Names}}' | tr '\n' ' ')"
       unhealthy="$(docker ps --filter "label=com.docker.compose.project=chi-$s" --filter health=unhealthy --format '{{.Names}}' | tr '\n' ' ')"
-      if [ -z "$running" ]; then bad "$s：没有运行中的容器 → chi up $s"
-      elif [ -n "$unhealthy" ]; then bad "$s：不健康 → $unhealthy（chi logs $s）"
-      else ok "$s：$running"; fi
+      if [ -z "$running" ]; then bad "${s}：没有运行中的容器 → chi up $s"
+      elif [ -n "$unhealthy" ]; then bad "${s}：不健康 → ${unhealthy}（chi logs ${s}）"
+      else ok "${s}：$running"; fi
     done
   fi
 else
@@ -76,7 +76,7 @@ fi
 if [ -f "$CHI_ROOT/.env" ] && case " $(resolve_stacks) " in *" ai "*) true ;; *) false ;; esac; then
   log "Ollama"
   if v="$(curl -fsS --max-time 2 http://127.0.0.1:11434/api/version 2>/dev/null)"; then
-    ok "Ollama 在线 $v；已有模型：$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' | tr '\n' ' ')"
+    ok "Ollama 在线 ${v}；已有模型：$(ollama list 2>/dev/null | awk 'NR>1 {print $1}' | tr '\n' ' ')"
   else
     bad "Ollama 不在线 → brew services start ollama"
   fi

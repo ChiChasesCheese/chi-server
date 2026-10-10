@@ -21,7 +21,7 @@ install_job() {
   plutil -lint "$dest" >/dev/null
   launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
   launchctl bootstrap "gui/$(id -u)" "$dest"
-  ok "$name：每天 $hour:$minute → chi $cmd $sub（日志 ~/Library/Logs/chi-service/$name.log）"
+  ok "${name}：每天 $hour:$minute → chi $cmd ${sub}（日志 ~/Library/Logs/chi-service/$name.log）"
 }
 
 remove_job() {

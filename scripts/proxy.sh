@@ -46,7 +46,7 @@ apply() {
   # -t 只校验不启动。第一次会下载 geosite 数据，可能要几秒
   mihomo -t -d "$dir" >/dev/null || { mihomo -t -d "$dir"; die "配置校验失败"; }
   brew services restart mihomo >/dev/null
-  ok "mihomo 已启动：代理 $(lan_ip):$PORT（HTTP/SOCKS5），面板 chi serve 后 https://$TS_FQDN:8007/ui"
+  ok "mihomo 已启动：代理 $(lan_ip):${PORT}（HTTP/SOCKS5），面板 chi serve 后 https://$TS_FQDN:8007/ui"
 }
 
 case "${1:-status}" in
