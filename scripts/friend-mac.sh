@@ -23,7 +23,9 @@ SSH_GROUP=com.apple.access_ssh
 SS_PLIST=/System/Library/LaunchDaemons/com.apple.screensharing.plist
 RM_PREFS=/Library/Preferences/com.apple.RemoteManagement
 VNC_PW_FILE=/Library/Preferences/com.apple.VNCSettings.txt
-HOST_FQDN="${CHI_TS_FQDN:-chi-mini.taila09b36.ts.net}"
+# 机器的 Tailscale 域名从 .env 读（chi init 填的 TS_FQDN）；仓库是公开的，不要把真实 tailnet 名写死在这里
+if [ -f "$CHI_ROOT/.env" ]; then load_env; fi
+HOST_FQDN="${TS_FQDN:-<你的机器>.<tailnet>.ts.net}"
 OWNER="$(id -un)"
 
 usage() {

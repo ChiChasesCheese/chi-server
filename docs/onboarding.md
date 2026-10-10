@@ -95,7 +95,7 @@ Tailscale 那边要给朋友放行 TCP 5900（用高性能模式还要 UDP 5900�
 
 **朋友怎么连**（他的 Mac 上先连好 Tailscale）：
 
-1. 打开「屏幕共享」App（或 Finder → 前往 → 连接服务器）→ 输入 `vnc://chi-mini.taila09b36.ts.net`
+1. 打开「屏幕共享」App（或 Finder → 前往 → 连接服务器）→ 输入 `vnc://<TS_FQDN>`（就是 `.env` 里的 `TS_FQDN`，形如 `chi-mini.tailXXXX.ts.net`）
 2. 用户名填他自己的账号名（如 `friend`）和密码
 3. 提示这台 Mac 有人在用时，选 **以自己身份登录**（不要选共享屏幕，那是请求控制你的桌面）
 4. 不用时 **注销**（苹果菜单 → 退出登录），只关窗口的话他的会话会一直挂着占内存
