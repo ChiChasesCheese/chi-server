@@ -66,6 +66,7 @@ bin/chi serve           # 管理面板 https://<TS_FQDN>:8007/ui
 - `chi tv vpn <onn的IP> com.fobwifi.transocks.tv` 设成始终开启，重启后自动连（没开 lockdown，穿梭挂了也能直连上网）
 - B 站：云视听小电视（`com.xiaodianshi.tv.yst`），APK 来自 B 站官方 `dl.hdslb.com/mobile/latest/android_tv_yst/iBiliTV-master.apk`。它面向老 Android，`chi tv install` 会带兼容参数，并在 Play 保护拦截时提示你点「仍然安装」
 - 穿梭官网的 TV 版 APK（4.0.8）在 Android 14 上装不了，用 Play 商店版
+- 腾讯视频 / NBA：腾讯体育**没有电视版**，电视上看 NBA 用腾讯官方的「云视听极光」（`com.ktcp.video`）。APK 从 tv.qq.com 的「立即下载」拿（它调用 `tv.qq.com/homeconfig` 换成最新链接，CDN 是 vmat.gtimg.com）。NBA 在电视上要**腾讯体育 SVIP**，普通体育 VIP 只能在手机和电脑上用；用开会员的那个微信或 QQ 扫码登录
 - 侧载的 App 不会自动更新；云视听小电视过几个月重新下载 `chi tv install` 一次
 
 下面是 mihomo 方案（给 Clash 订阅类服务用），保留备查。
