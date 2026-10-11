@@ -72,7 +72,8 @@ case "${1:-install}" in
       *" media "*) install_job media-clean media clean 5 47; install_job media-iptv media iptv 5 27 ;;
       *) remove_job media-clean; remove_job media-iptv ;;
     esac
-    log "手动触发测试：launchctl kickstart -k gui/$(id -u)/com.chi-service.backup"
+    [ -n "${RESTIC_REPOSITORY:-}" ] && log "手动触发备份测试：launchctl kickstart -k gui/$(id -u)/com.chi-service.backup"
+    true
     ;;
   uninstall)
     remove_job backup; remove_job media-clean; remove_job media-iptv; remove_job heartbeat
