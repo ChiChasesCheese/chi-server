@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 给 Uptime Kuma 添加一组默认监控（各服务健康检查 + 外网）。会提示输入 Kuma 账号密码，走正常登录。
 # 用法：scripts/kuma-seed.sh [用户名]
+#       KUMA_PASSWORD_FILE=~/.config/chi/kuma-password scripts/kuma-seed.sh <用户名>   （非交互）
 # 幂等：同名监控已存在就跳过，重复跑不会重复添加。
 # 可选：.env 里设了 NTFY_TOPIC（和可选的 NTFY_SERVER，默认 https://ntfy.sh），
 #       会建一个 ntfy 通知（设为默认），并挂到这次新加的监控上。手机装 ntfy App 订阅同名 topic 即可收到。
@@ -12,11 +13,19 @@ load_env
 ensure_brew_path
 docker ps --format '{{.Names}}' | grep -qx chi-uptime-kuma || die "chi-uptime-kuma 没在跑 → chi up core"
 
-{ : </dev/tty; } 2>/dev/null || die "需要在交互式终端里运行（读不到 /dev/tty）"
 user="${1:-}"
-[ -n "$user" ] || read -r -p "Uptime Kuma 用户名: " user </dev/tty
+# 非交互：KUMA_PASSWORD_FILE 指向只有自己能读的密码文件（如 ~/.config/chi/kuma-password），用户名用第 1 个参数。
+# 别用 script/pty 往 /dev/tty 灌密码——pty 会把输入回显出来。
+if [ -n "${KUMA_PASSWORD_FILE:-}" ]; then
+  [ -n "$user" ] || die "用 KUMA_PASSWORD_FILE 时要把用户名作为第 1 个参数"
+  [ -r "$KUMA_PASSWORD_FILE" ] || die "读不到 $KUMA_PASSWORD_FILE"
+  pass="$(head -n1 "$KUMA_PASSWORD_FILE")"
+else
+  { : </dev/tty; } 2>/dev/null || die "需要在交互式终端里运行（读不到 /dev/tty），或设 KUMA_PASSWORD_FILE"
+  [ -n "$user" ] || read -r -p "Uptime Kuma 用户名: " user </dev/tty
+  IFS= read -r -s -p "Uptime Kuma 密码: " pass </dev/tty; echo >&2
+fi
 [ -n "$user" ] || die "用户名为空"
-IFS= read -r -s -p "Uptime Kuma 密码: " pass </dev/tty; echo >&2
 [ -n "$pass" ] || die "密码为空"
 
 js_local="$(mktemp "${TMPDIR:-/tmp}/chi-kuma-seed.XXXXXX")"
