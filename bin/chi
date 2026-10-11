@@ -14,6 +14,7 @@ usage() {
   init                  生成 .env（自动填时区、随机密钥），已存在则只补缺的键
   bootstrap [步骤...]   装机：dotfiles brew macos runtime tailscale ollama（默认全跑）
   doctor                体检：电源、防火墙、SSH、FileVault、Tailscale、Docker、各服务
+  unattended            无人值守：关 FileVault、开自动登录、Tailscale operator（要输密码，ssh -t 里跑）
 
 服务（stack = stacks/ 下的一个目录；不写就是 .env 里 CHI_STACKS 的全部）
   up [stack...]         启动
@@ -62,6 +63,7 @@ case "$cmd" in
   init)       exec "$CHI_ROOT/scripts/init-env.sh" "$@" ;;
   bootstrap)  exec "$CHI_ROOT/scripts/bootstrap.sh" "$@" ;;
   doctor)     exec "$CHI_ROOT/scripts/doctor.sh" "$@" ;;
+  unattended) exec "$CHI_ROOT/scripts/unattended.sh" "$@" ;;
   update)     exec "$CHI_ROOT/scripts/update.sh" "$@" ;;
   serve)      exec "$CHI_ROOT/scripts/tailscale-serve.sh" "$@" ;;
   backup)     exec "$CHI_ROOT/scripts/backup.sh" "$@" ;;
