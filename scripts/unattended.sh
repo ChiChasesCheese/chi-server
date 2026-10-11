@@ -65,7 +65,7 @@ fi
 
 log "第 4 步：自动登录后立刻锁屏（服务照跑，桌面要密码）"
 # 自动登录 = 开机直接进已解锁的桌面；任何站在机器前、或用 ToDesk 这类“控制主屏幕会话”的工具连上来的人都能直接用。
-# 所以：(a) 屏保/熄屏后立即要密码；(b) 登录 60 秒后（等 OrbStack 等登录项起来）自动启动屏保 = 锁屏。
+# 所以：(a) 屏保/熄屏后立即要密码；(b) 登录 3 秒后立刻启动屏保 + 熄屏 = 锁屏（锁屏不影响登录项和服务启动）。
 if sysadminctl -screenLock status 2>&1 | grep -q "immediate"; then
   ok "熄屏/屏保后立即要求密码"
 else
@@ -82,7 +82,7 @@ cat >"$agent" <<'PLIST'
 <dict>
   <key>Label</key><string>com.chi-service.lock-at-login</string>
   <key>ProgramArguments</key>
-  <array><string>/bin/sh</string><string>-c</string><string>sleep 60; /usr/bin/open -a ScreenSaverEngine</string></array>
+  <array><string>/bin/sh</string><string>-c</string><string>sleep 3; /usr/bin/open -a ScreenSaverEngine; /usr/bin/pmset displaysleepnow</string></array>
   <key>RunAtLoad</key><true/>
 </dict>
 </plist>
@@ -90,7 +90,7 @@ PLIST
 plutil -lint "$agent" >/dev/null
 launchctl bootout "gui/$(id -u)/com.chi-service.lock-at-login" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$agent" 2>/dev/null || true
-ok "登录 60 秒后自动锁屏（${agent}）"
+ok "登录 3 秒后自动锁屏（${agent}）"
 
 log "结果"
 fdesetup status
