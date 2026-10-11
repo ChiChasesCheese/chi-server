@@ -1,9 +1,9 @@
-# core：每台服务器都该有的三件套
-#   Homepage     首页/导航，所有服务一个入口
-#   Uptime Kuma  监控 + 告警（挂了推送到手机/Telegram/Bark 等）
-#   Dozzle       网页看容器日志（只读）
+# core: the three things every server should have
+#   Homepage     Dashboard / start page, one entry point for every service
+#   Uptime Kuma  Monitoring + alerts (push to phone / Telegram / Bark etc. when something is down)
+#   Dozzle       Container logs in the browser (read-only)
 #
-# 端口都绑在 ${BIND_ADDR}（默认 127.0.0.1），外部访问统一走 `chi serve`。
+# All ports bind to ${BIND_ADDR} (default 127.0.0.1); outside access goes through `chi serve`.
 
 services:
   homepage:
@@ -13,18 +13,19 @@ services:
     ports:
       - "${BIND_ADDR:-127.0.0.1}:3000:3000"
     environment:
-      # Homepage 1.x 起必须声明允许的 Host，防 DNS rebinding
+      # Homepage 1.x requires an allow-list of Host headers (DNS rebinding protection)
       HOMEPAGE_ALLOWED_HOSTS: "${TS_FQDN:-localhost},localhost:3000,127.0.0.1:3000,${CHI_HOSTNAME:-chi-mini}.local:3000"
-      # 在 homepage/*.yaml 里用 {{HOMEPAGE_VAR_TS_FQDN}} 引用
+      # Referenced in homepage/*.yaml as {{HOMEPAGE_VAR_TS_FQDN}}
       HOMEPAGE_VAR_TS_FQDN: "${TS_FQDN:-localhost}"
-      # Jellyfin 卡片上的片源数 / 正在播放（.env 里 JELLYFIN_API_KEY 为空时卡片会显示 API 错误，不影响其他）
+      # Library counts / now playing on the Jellyfin card (with JELLYFIN_API_KEY empty the card shows
+      # an API error; nothing else is affected)
       HOMEPAGE_VAR_JELLYFIN_KEY: "${JELLYFIN_API_KEY:-}"
-      # public stack（Cloudflare Tunnel）公开的域名，「公网」卡片用；没开 public 就留空
+      # Domain published by the public stack (Cloudflare Tunnel), used by the "Public" card; empty if public is off
       HOMEPAGE_VAR_PUBLIC_DOMAIN: "${PUBLIC_DOMAIN:-}"
-      TZ: "${TZ}"
+      TZ: "${TZ:-UTC}"
     volumes:
       - ./homepage:/app/config
-      # 只读挂 docker socket，用来在卡片上显示容器运行状态
+      # Read-only docker socket, used to show container status on the cards
       - /var/run/docker.sock:/var/run/docker.sock:ro
 
   uptime-kuma:
@@ -34,7 +35,7 @@ services:
     ports:
       - "${BIND_ADDR:-127.0.0.1}:3001:3001"
     environment:
-      TZ: "${TZ}"
+      TZ: "${TZ:-UTC}"
     volumes:
       - ${DATA_DIR}/uptime-kuma:/app/data
       - /var/run/docker.sock:/var/run/docker.sock:ro

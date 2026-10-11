@@ -1,4 +1,5 @@
-# 中文提示里有意使用全角引号（SC1111）；ok/warn 只是 printf，A && ok || bad 的写法是安全的（SC2015）
+# SC1111: some messages used to contain full-width quotes on purpose (kept disabled for safety).
+# SC2015: ok/warn are just printf, so `A && ok || bad` is safe.
 external-sources=true
 source-path=SCRIPTDIR
 disable=SC2015,SC1111,SC2119,SC2120

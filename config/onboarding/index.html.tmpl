@@ -1,14 +1,14 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>chi-service 接入指南</title>
+<title>chi-server Onboarding</title>
 <style>
   :root { --bg:#fbfbfa; --fg:#1d1d1f; --muted:#6e6e73; --card:#fff; --line:#e5e5ea; --accent:#0a7cff; --code:#f2f2f5; }
   @media (prefers-color-scheme: dark) { :root { --bg:#111113; --fg:#f2f2f5; --muted:#a1a1a6; --card:#1c1c1f; --line:#2c2c30; --accent:#4ea1ff; --code:#26262a; } }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
   main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
   h1 { font-size: 28px; margin: 8px 0 4px; } h2 { font-size: 21px; margin: 36px 0 8px; } h3 { font-size: 17px; margin: 20px 0 6px; }
   p, li { color: var(--fg); } .muted { color: var(--muted); font-size: 14px; }
@@ -25,96 +25,96 @@
 </head>
 <body>
 <main>
-<h1>chi-service 接入指南</h1>
-<p class="muted">服务器：<code>__HOST__</code> · 生成于 __GENERATED__ · 这个页面只有连着 Tailscale 才能打开</p>
-<nav><a href="#apps">有什么</a><a href="#iphone">iPhone</a><a href="#mac">MacBook</a><a href="#android">Android</a><a href="#cn">看 B 站大陆内容</a><a href="#rules">约定</a><a href="#help">出问题</a></nav>
+<h1>chi-server Onboarding</h1>
+<p class="muted">Server: <code>__HOST__</code> · generated __GENERATED__ · this page only opens while you are connected to Tailscale</p>
+<nav><a href="#apps">What's here</a><a href="#iphone">iPhone</a><a href="#mac">MacBook</a><a href="#android">Android</a><a href="#cn">China-only content</a><a href="#rules">House rules</a><a href="#help">Troubleshooting</a></nav>
 
-<h2 id="apps">你能用到什么</h2>
+<h2 id="apps">What you can use</h2>
 <div class="card"><table>
-<tr><th>服务</th><th>打开</th><th>说明</th></tr>
-<tr><td>首页</td><td><a href="https://__FQDN__">打开 ↗</a></td><td>所有服务的入口</td></tr>
-<tr><td>Jellyfin</td><td><a href="https://__FQDN__:8009">:8009 ↗</a></td><td>影音库。账号找管理员要</td></tr>
-<tr><td>MeTube</td><td><a href="https://__FQDN__:8010">:8010 ↗</a></td><td>贴视频链接 → 下载到影音库（如果管理员给你开了）</td></tr>
-<tr><td>AI 聊天</td><td><a href="https://__FQDN__:8003">:8003 ↗</a></td><td>本地大模型，第一次注册后等管理员批准（如果开了）</td></tr>
-<tr><td>回国代理</td><td><a href="#cn">设置方法</a></td><td>见下面「看 B 站大陆内容」</td></tr>
+<tr><th>Service</th><th>Open</th><th>Notes</th></tr>
+<tr><td>Home</td><td><a href="https://__FQDN__">Open ↗</a></td><td>Entry point for every service</td></tr>
+<tr><td>Jellyfin</td><td><a href="https://__FQDN__:8009">:8009 ↗</a></td><td>Media library. Ask the admin for an account</td></tr>
+<tr><td>MeTube</td><td><a href="https://__FQDN__:8010">:8010 ↗</a></td><td>Paste a video link -> it downloads into the media library (if the admin enabled it for you)</td></tr>
+<tr><td>AI chat</td><td><a href="https://__FQDN__:8003">:8003 ↗</a></td><td>Local LLM. After you sign up, wait for the admin to approve you (if enabled)</td></tr>
+<tr><td>China proxy</td><td><a href="#cn">Setup</a></td><td>See "China-only content" below</td></tr>
 </table></div>
-<p class="muted">完整地址都是 <code>https://__FQDN__:端口</code>。看不到某个服务 = 管理员没给你开，或者它没启用。直接问管理员。</p>
+<p class="muted">Every address has the form <code>https://__FQDN__:port</code>. If a service does not load, the admin has not shared it with you or it is not enabled. Just ask the admin.</p>
 
 <h2 id="iphone">iPhone / iPad</h2>
-<h3>1. 连上服务器（必做）</h3>
+<h3>1. Connect to the server (required)</h3>
 <ol>
-<li>App Store 装 <b>Tailscale</b>，用任意账号（Google / Apple / 微软）登录。</li>
-<li>点开管理员发给你的<b>分享链接</b>，接受。之后在 Tailscale 里能看到 <code>__HOST__</code>。</li>
-<li>Tailscale 开关打开（显示 Connected）。不用的时候可以关，它只管通往服务器的流量，不影响你正常上网。</li>
-<li>Safari 打开 <a href="https://__FQDN__">首页</a> → 分享按钮 → <b>添加到主屏幕</b>，以后点图标就进来了。</li>
+<li>Install <b>Tailscale</b> from the App Store and sign in with any account (Google / Apple / Microsoft).</li>
+<li>Open the <b>invite link</b> the admin sent you and accept it. You should then see <code>__HOST__</code> in Tailscale.</li>
+<li>Turn Tailscale on (it shows Connected). You can turn it off when not in use; it only carries traffic to the server and does not affect the rest of your browsing.</li>
+<li>Open the <a href="https://__FQDN__">home page</a> in Safari -> Share -> <b>Add to Home Screen</b>. From then on, just tap the icon.</li>
 </ol>
-<h3>2. 看影音库</h3>
+<h3>2. Watch the media library</h3>
 <ul>
-<li>App Store 装 <b>Swiftfin</b>（Jellyfin 官方的原生 iOS 客户端，免费）或 <b>Jellyfin Mobile</b>。</li>
-<li>服务器地址填 <code>https://__FQDN__:8009</code>，用户名密码找管理员要。</li>
-<li>可以投到电视：播放界面点 AirPlay，或在家里的 onn 盒子上直接用 Jellyfin 看。</li>
+<li>Install <b>Swiftfin</b> (the official native Jellyfin client for iOS, free) or <b>Jellyfin Mobile</b> from the App Store.</li>
+<li>Server address: <code>https://__FQDN__:8009</code>. Ask the admin for a username and password.</li>
+<li>To watch on a TV: tap AirPlay in the player, or use the Jellyfin app on the TV box at home.</li>
 </ul>
-<h3>3. 一键把视频发给服务器下载（可选，需要管理员开放 MeTube）</h3>
+<h3>3. Send a video to the server with one tap (optional, needs MeTube access)</h3>
 <ol>
-<li>打开「快捷指令」App → 右上角 <b>+</b> 新建 → 名字改成「存到 chi」。</li>
-<li>点底部 ⓘ → 打开 <b>在共享表单中显示</b>，接收类型只勾 <b>URL</b>。</li>
-<li>添加操作 <b>获取 URL 内容</b>：URL 填 <code>https://__FQDN__:8010/add</code>；展开 → 方法 <b>POST</b>；请求体 <b>JSON</b>；添加字段 <code>url</code> = <i>快捷指令输入</i>，<code>quality</code> = <code>1080</code>。</li>
-<li>添加操作 <b>显示通知</b>：「已发送到 chi」。</li>
-<li>以后在 YouTube / B 站 App 里点 分享 → 更多 → 「存到 chi」。几分钟后 Jellyfin 里就有了。</li>
+<li>Open the <b>Shortcuts</b> app -> <b>+</b> (top right) -> name it "Save to chi".</li>
+<li>Tap ⓘ at the bottom -> turn on <b>Show in Share Sheet</b>, and accept only <b>URLs</b>.</li>
+<li>Add the action <b>Get Contents of URL</b>: URL <code>https://__FQDN__:8010/add</code>; expand it -> Method <b>POST</b>; Request Body <b>JSON</b>; add the fields <code>url</code> = <i>Shortcut Input</i> and <code>quality</code> = <code>1080</code>.</li>
+<li>Add the action <b>Show Notification</b>: "Sent to chi".</li>
+<li>From now on, in the YouTube / Bilibili app tap Share -> More -> "Save to chi". A few minutes later it shows up in Jellyfin.</li>
 </ol>
 
 <h2 id="mac">MacBook</h2>
-<h3>1. 连上服务器（必做）</h3>
+<h3>1. Connect to the server (required)</h3>
 <ol>
-<li>装 <b>Tailscale</b>：Mac App Store，或 <a href="https://tailscale.com/download/mac">tailscale.com/download/mac</a>。登录，点开管理员的分享链接接受。</li>
-<li>浏览器打开 <a href="https://__FQDN__">首页</a> 加书签。</li>
+<li>Install <b>Tailscale</b> from the Mac App Store or <a href="https://tailscale.com/download/mac">tailscale.com/download/mac</a>. Sign in, then open and accept the admin's invite link.</li>
+<li>Open the <a href="https://__FQDN__">home page</a> in your browser and bookmark it.</li>
 </ol>
-<h3>2. 看影音库</h3>
+<h3>2. Watch the media library</h3>
 <ul>
-<li>直接在浏览器打开 <a href="https://__FQDN__:8009">Jellyfin</a>；或者装桌面客户端：<code>brew install --cask jellyfin-media-player</code>（服务器填 <code>https://__FQDN__:8009</code>）。</li>
+<li>Open <a href="https://__FQDN__:8009">Jellyfin</a> in the browser, or install the desktop client: <code>brew install --cask jellyfin-media-player</code> (server: <code>https://__FQDN__:8009</code>).</li>
 </ul>
-<h3>3. SSH（只有管理员需要）</h3>
-<p><code>ssh 用户名@__HOST__</code></p>
+<h3>3. SSH (admins only)</h3>
+<p><code>ssh &lt;user&gt;@__HOST__</code></p>
 
-<h2 id="android">Android 手机</h2>
+<h2 id="android">Android</h2>
 <ul>
-<li>Play 商店装 <b>Tailscale</b>，登录，接受分享链接。</li>
-<li>Play 商店装 <b>Jellyfin</b>，服务器 <code>https://__FQDN__:8009</code>。</li>
+<li>Install <b>Tailscale</b> from the Play Store, sign in, accept the invite link.</li>
+<li>Install <b>Jellyfin</b> from the Play Store; server <code>https://__FQDN__:8009</code>.</li>
 </ul>
 
-<h2 id="cn">看 B 站 / 爱奇艺 / 腾讯视频的大陆限定内容</h2>
-<p>服务器上有一个「回国」代理：只有这些大陆视频站点走中国线路，其他网站完全不受影响。你只需要让设备在访问这些站点时用这个代理——下面的 <b>PAC 地址</b>会自动帮你判断。</p>
-<div class="card"><p>PAC 地址：<code>https://__FQDN__:8008/chi.pac</code></p></div>
-<h3>MacBook（最好用，在哪都行）</h3>
+<h2 id="cn">Mainland-China-only content (Bilibili / iQIYI / Tencent Video)</h2>
+<p>The server runs a China-exit proxy: only these mainland video sites go through the China route; every other site is unaffected. Your device just needs to use the proxy for those sites, and the <b>PAC URL</b> below decides that automatically.</p>
+<div class="card"><p>PAC URL: <code>https://__FQDN__:8008/chi.pac</code></p></div>
+<h3>MacBook (works best, from anywhere)</h3>
 <ol>
-<li>系统设置 → 网络 → Wi‑Fi → 当前网络旁边的 <b>详细信息…</b> → <b>代理</b>。</li>
-<li>打开 <b>自动代理配置</b>，URL 填上面的 PAC 地址 → 好。</li>
-<li>保持 Tailscale 连接。Safari / Chrome 打开 bilibili.com 就是大陆版内容了。</li>
-<li>不想用时把「自动代理配置」关掉即可。用有线网的话，在「以太网」里同样设置一遍。</li>
+<li>System Settings -> Network -> Wi-Fi -> <b>Details...</b> next to the current network -> <b>Proxies</b>.</li>
+<li>Turn on <b>Automatic proxy configuration</b>, paste the PAC URL above -> OK.</li>
+<li>Stay connected to Tailscale. bilibili.com in Safari / Chrome now shows the mainland version.</li>
+<li>To stop, turn "Automatic proxy configuration" off. On wired Ethernet, repeat the same steps under Ethernet.</li>
 </ol>
 <h3>iPhone</h3>
 <ol>
-<li>设置 → Wi‑Fi → 当前网络右边的 ⓘ → 最底下 <b>配置代理</b> → <b>自动</b> → URL 填 PAC 地址。</li>
-<li>Tailscale 保持连接。打开 B 站 App（App Store 里的「哔哩哔哩」）。</li>
+<li>Settings -> Wi-Fi -> ⓘ next to the current network -> <b>Configure Proxy</b> (at the bottom) -> <b>Automatic</b> -> paste the PAC URL.</li>
+<li>Stay connected to Tailscale and open the Bilibili app.</li>
 </ol>
-<div class="warn"><b>说实话的限制：</b>iPhone 的代理设置是<b>按 Wi‑Fi 网络</b>的，用蜂窝数据时没法设置；另外 iOS 同时只能开一个 VPN 类 App，Tailscale 开着时我无法保证每个 App 都遵守 PAC —— 试一下，不行就在 Mac 上看。</div>
-<h3>家里的 onn 电视盒子 / 投影</h3>
-<p>管理员已经在服务器上配好，直接用盒子上的「云视听小电视」或 BBLL 就行。</p>
+<div class="warn"><b>Limitations:</b> iPhone proxy settings are <b>per Wi-Fi network</b>, so there is no way to set one on cellular. Also, iOS runs only one VPN-type app at a time, and with Tailscale on there is no guarantee every app honors the PAC - try it, and if it does not work, watch on a Mac.</div>
+<h3>TV box / projector at home</h3>
+<p>The admin has already set this up on the server; just use the Bilibili TV app or BBLL on the box.</p>
 
-<h2 id="rules">约定</h2>
+<h2 id="rules">House rules</h2>
 <ul>
-<li><b>分享链接只给你自己</b>，别转发。每个朋友单独邀请。</li>
-<li>服务器硬盘不大（下载区上限 __MEDIA_MAX_GB__ GB，满了自动删最旧的）。想永久保留的告诉管理员挪到 Keep。</li>
-<li>回国线路是付费流量，看看没问题，别用它批量下载。</li>
-<li>只下载你自己看的东西，别用来搬运/传播。</li>
+<li><b>Your invite link is for you only</b> - do not forward it. Every guest gets their own invite.</li>
+<li>Disk space is limited (the download area is capped at __MEDIA_MAX_GB__ GB, and the oldest files are deleted when it fills up). Ask the admin to move anything you want to keep into Keep.</li>
+<li>The China route is paid traffic: watching is fine, bulk downloading through it is not.</li>
+<li>Only download things you will watch yourself; do not use it to redistribute content.</li>
 </ul>
 
-<h2 id="help">出问题</h2>
+<h2 id="help">Troubleshooting</h2>
 <ul>
-<li><b>所有地址都打不开</b> → Tailscale 是不是 Connected？Tailscale 里能不能看到 <code>__HOST__</code>？</li>
-<li><b>浏览器提示证书错误</b> → 地址要用完整的 <code>__FQDN__</code>，不要用 IP。</li>
-<li><b>B 站还是提示地区限制</b> → 检查 PAC 地址有没有填对、Tailscale 是否连着；再不行告诉管理员。</li>
-<li>其他问题直接找管理员 🙂</li>
+<li><b>Nothing opens</b> -> Is Tailscale Connected? Can you see <code>__HOST__</code> in Tailscale?</li>
+<li><b>The browser shows a certificate error</b> -> Use the full <code>__FQDN__</code> address, not an IP.</li>
+<li><b>Bilibili still says the content is region-locked</b> -> Check the PAC URL and that Tailscale is connected; if it still fails, tell the admin.</li>
+<li>Anything else: ask the admin.</li>
 </ul>
 </main>
 </body>

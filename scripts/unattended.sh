@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# 让这台机器“无人值守”：断电/重启后不用任何人到场，服务自己回来。
-# 只做必须输密码的那几步（macOS 规定这些不能免密），可重复执行，已完成的步骤会跳过。
+# Make this machine run unattended: after a power loss or reboot, services come back with nobody present.
+# Only does the steps that need a password (macOS requires one for these). Safe to re-run; finished steps are skipped.
 #
-#   1. Tailscale：把本用户设为 operator，并挂上 chi serve 的全部规则（含 :8008 接入页）
-#   2. FileVault：关闭（后台解密，可照常使用）
-#   3. 自动登录：解密完成后设为当前用户
+#   1. Tailscale: make this user an operator and apply all chi serve rules (including the :8008 landing page)
+#   2. FileVault: turn off (decrypts in the background; keep using the Mac meanwhile)
+#   3. Auto-login: set to the current user once decryption is done
 #
-# 用法（必须在真终端里，要输密码）：
-#   ssh -t chi-mini 'cd ~/chi-service && bin/chi unattended'
-# FileVault 还在解密时第 3 步会跳过，等解密完再跑一次即可。
+# Usage (must be a real terminal, it asks for passwords):
+#   ssh -t chi-mini 'cd <repo> && bin/chi unattended'
+# While FileVault is still decrypting, step 3 is skipped; run it again once decryption finishes.
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 require_macos
@@ -16,62 +16,64 @@ ensure_brew_path
 load_env
 
 me="$(id -un)"
-[ -t 0 ] || die "需要交互终端输密码：ssh -t chi-mini 'cd ~/chi-service && bin/chi unattended'"
+[ -t 0 ] || die "Needs an interactive terminal for passwords: ssh -t <host> 'cd ${CHI_ROOT} && bin/chi unattended'"
 
-log "第 1 步：Tailscale operator + serve 规则（会要 sudo 密码）"
+log "Step 1: Tailscale operator + serve rules (asks for your sudo password)"
 sudo -v
 sudo_ts set --operator="$me"
 "$CHI_ROOT/scripts/tailscale-serve.sh" apply
-ok "以后 chi serve 不再需要 sudo"
+ok "chi serve no longer needs sudo"
 
-log "第 2 步：FileVault"
+log "Step 2: FileVault"
 fv="$(fdesetup status)"
 case "$fv" in
   *"FileVault is Off"*)
-    ok "FileVault 已关闭" ;;
+    ok "FileVault is off" ;;
   *"Decryption in progress"*)
-    ok "正在解密中：${fv}" ;;
+    ok "Decrypting: ${fv}" ;;
   *"FileVault is On"*)
-    warn "即将关闭 FileVault（下面会问 FileVault 用户名和密码，填 ${me} 和登录密码）"
-    # fdesetup 失败时退出码不可靠（会打印 "FileVault was not disabled (N)" 但仍可能返回 0），以状态为准
+    warn "Turning FileVault off (you'll be asked for a FileVault user and password: enter ${me} and your login password)"
+    # fdesetup's exit code is unreliable on failure (prints "FileVault was not disabled (N)" yet may return 0); trust the status
     sudo fdesetup disable || true
     if fdesetup status | grep -qE "Off|Decryption in progress"; then
-      ok "已开始解密，后台进行，期间可照常使用"
+      ok "Decryption started; it runs in the background and the Mac stays usable"
     else
-      warn "FileVault 没有关掉（多半是用户名或密码不对，或该账号不是 FileVault 解锁用户）"
-      warn "可改用：系统设置 → 隐私与安全性 → FileVault → 关闭"
+      warn "FileVault was not turned off (most likely a wrong user or password, or the account can't unlock FileVault)"
+      warn "Alternative: System Settings -> Privacy & Security -> FileVault -> Turn Off"
     fi ;;
   *)
-    warn "看不懂的 FileVault 状态：${fv}，跳过" ;;
+    warn "Unrecognized FileVault status: ${fv}; skipping" ;;
 esac
 
-log "第 3 步：自动登录"
+log "Step 3: auto-login"
 current="$(autologin_effective)"
 if [ "$current" = "$me" ]; then
-  ok "已设置自动登录：${me}"
+  ok "Auto-login already set: ${me}"
 elif fdesetup status | grep -q "FileVault is Off"; then
-  log "设置自动登录为 ${me}（下面输 ${me} 的登录密码）"
+  log "Setting auto-login to ${me} (enter ${me}'s login password below)"
   sudo sysadminctl -autologin set -userName "$me" -password - || true
-  # sysadminctl 密码错了也可能只写进 autoLoginUser 而没存密码，以实际状态为准
+  # With a wrong password sysadminctl may write autoLoginUser without storing the password; trust the real state
   if [ "$(autologin_effective)" = "$me" ]; then
-    ok "自动登录：${me}"
+    ok "Auto-login: ${me}"
   else
-    warn "自动登录没生效（多半是密码不对）。请手动：系统设置 → 用户与群组 → 自动登录 → ${me}"
+    warn "Auto-login did not take effect (most likely a wrong password). Set it by hand: System Settings -> Users & Groups -> Automatically log in as -> ${me}"
   fi
 else
-  warn "FileVault 还没解密完，暂时不能开自动登录。解密完成后再跑一次：bin/chi unattended"
-  warn "看进度：fdesetup status"
+  warn "FileVault is still decrypting; auto-login can't be enabled yet. Run this again when it's done: bin/chi unattended"
+  warn "Check progress: fdesetup status"
 fi
 
-log "第 4 步：自动登录后立刻锁屏（服务照跑，桌面要密码）"
-# 自动登录 = 开机直接进已解锁的桌面；任何站在机器前、或用 ToDesk 这类“控制主屏幕会话”的工具连上来的人都能直接用。
-# 所以：(a) 屏保/熄屏后立即要密码；(b) 登录 3 秒后立刻启动屏保 + 熄屏 = 锁屏（锁屏不影响登录项和服务启动）。
+log "Step 4: lock the screen right after auto-login (services keep running, the desktop needs a password)"
+# Auto-login boots straight into an unlocked desktop; anyone at the machine, or connected with a tool that controls the
+# main screen session (e.g. ToDesk), could use it. So: (a) require the password immediately after screensaver/display
+# sleep; (b) 3 seconds after login start the screensaver + sleep the display = locked (locking doesn't stop login items
+# or services from starting).
 if sysadminctl -screenLock status 2>&1 | grep -q "immediate"; then
-  ok "熄屏/屏保后立即要求密码"
+  ok "Password required immediately after display sleep/screensaver"
 else
-  log "设置熄屏/屏保后立即要求密码（下面输 ${me} 的登录密码）"
+  log "Requiring the password immediately after display sleep/screensaver (enter ${me}'s login password below)"
   sysadminctl -screenLock immediate -password - \
-    || warn "没设成功，请手动：系统设置 → 锁定屏幕 → 屏幕保护程序启动或显示器关闭后要求输入密码 → 立即"
+    || warn "Didn't work; set it by hand: System Settings -> Lock Screen -> Require password after screen saver begins or display is turned off -> Immediately"
 fi
 agent="$HOME/Library/LaunchAgents/com.chi-service.lock-at-login.plist"
 mkdir -p "$HOME/Library/LaunchAgents"
@@ -90,9 +92,9 @@ PLIST
 plutil -lint "$agent" >/dev/null
 launchctl bootout "gui/$(id -u)/com.chi-service.lock-at-login" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$agent" 2>/dev/null || true
-ok "登录 3 秒后自动锁屏（${agent}）"
+ok "Screen locks 3 seconds after login (${agent})"
 
-log "结果"
+log "Result"
 fdesetup status
-echo "自动登录（实际生效）: $(autologin_effective)"
+echo "Auto-login (effective): $(autologin_effective)"
 tailscale serve status 2>/dev/null | grep -E '^https' || true

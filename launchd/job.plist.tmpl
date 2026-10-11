@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 通用 launchd 任务模板：scripts/schedule.sh 填好双下划线占位符后装到 ~/Library/LaunchAgents/ -->
+<!-- Generic launchd job template: scripts/schedule.sh fills in the double-underscore placeholders and installs it into ~/Library/LaunchAgents/ -->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -14,7 +14,7 @@
   </array>
   <key>EnvironmentVariables</key>
   <dict>
-    <!-- launchd 的 PATH 极简，要手动补上 Homebrew 和 OrbStack -->
+    <!-- launchd's PATH is minimal; add Homebrew and OrbStack by hand -->
     <key>PATH</key>
     <string>/opt/homebrew/bin:/opt/homebrew/sbin:__HOME__/.orbstack/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
@@ -29,7 +29,7 @@
   <string>__HOME__/Library/Logs/chi-service/__NAME__.log</string>
   <key>StandardErrorPath</key>
   <string>__HOME__/Library/Logs/chi-service/__NAME__.log</string>
-  <!-- 低优先级，别跟服务抢 CPU / IO -->
+  <!-- Low priority: don't compete with the services for CPU / IO -->
   <key>LowPriorityIO</key>
   <true/>
   <key>Nice</key>

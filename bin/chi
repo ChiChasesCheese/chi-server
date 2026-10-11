@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# chi —— chi-service 的唯一入口。所有操作都从这里走，具体逻辑在 scripts/ 里。
+# chi - the single entry point. Every operation goes through here; the logic lives in scripts/.
 set -euo pipefail
 
 CHI_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -8,38 +8,39 @@ CHI_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 usage() {
   cat <<EOF
-用法: bin/chi <命令> [参数]
+Usage: bin/chi <command> [args]
 
-装机（按顺序，都可重复执行）
-  init                  生成 .env（自动填时区、随机密钥），已存在则只补缺的键
-  bootstrap [步骤...]   装机：dotfiles brew macos runtime tailscale ollama（默认全跑）
-  doctor                体检：电源、防火墙、SSH、FileVault、Tailscale、Docker、各服务
-  remote-check [host]   在控制机（MacBook）上跑：从用户视角端到端检查 mini（默认 host chi-mini）
-  unattended            无人值守：关 FileVault、开自动登录、Tailscale operator（要输密码，ssh -t 里跑）
+Setup (in order; all idempotent)
+  init                  create .env (timezone, random secrets); on an existing .env only fills missing keys
+  bootstrap [step...]   provision: dotfiles brew macos runtime tailscale ollama (default: all)
+  unattended            survive reboots unattended: FileVault off, auto-login, lock at login (interactive: ssh -t)
+  doctor                health check on the server: power, firewall, SSH, Tailscale, Docker, every stack
+  remote-check [host]   end-to-end check from a client machine, as a user would see it (default host: chi-mini)
 
-服务（stack = stacks/ 下的一个目录；不写就是 .env 里 CHI_STACKS 的全部）
-  up [stack...]         启动
-  down [stack...]       停止
-  restart [stack...]    重启
-  ps [stack...]         状态
-  logs <stack> [svc]    跟日志（Ctrl-C 退出）
-  update [--no-brew]    升级 brew 包 + 拉新镜像并重建容器
-  serve [apply|status|reset]  用 tailscale serve 把服务以 HTTPS 暴露到你的 tailnet
+Stacks (a stack = a directory under stacks/; no argument = all of CHI_STACKS in .env)
+  stacks                list available stacks and which are enabled
+  up [stack...]         start
+  down [stack...]       stop
+  restart [stack...]    restart
+  ps [stack...]         status
+  logs <stack> [svc]    follow logs (Ctrl-C to quit)
+  update [--no-brew]    upgrade Homebrew packages, pull new images, recreate containers
+  serve [apply|status|reset]  expose stacks over HTTPS on your tailnet (tailscale serve)
 
-媒体 / 分享
-  fetch <url> [文件夹]   交给 MeTube 下载到媒体库（YouTube、B 站等 yt-dlp 支持的站点）
-  media [usage|clean|scan|sub|iptv]  媒体库占用 / 清理 / 重扫 / 追剧订阅 / 直播频道
-  onboard               生成给自己和朋友的接入页面（tailnet 内 :8008）+ 可直接转发的邀请文字
+Media & sharing
+  fetch <url> [folder]  queue a download in MeTube (YouTube and anything else yt-dlp supports)
+  media [usage|clean|scan|sub|iptv]  library usage / cleanup / rescan / subscriptions / IPTV channels
+  onboard               generate the onboarding page (tailnet :8008) and a ready-to-send invite
 
-回国 / 电视（见 docs/china-media.md）
-  proxy [install|apply|test|status|logs]  mihomo 分流：只有大陆视频站走回国 VPN
-  tv [connect|install|proxy|apps|shell]   adb 远程管理 Google TV 盒子
+Network & devices
+  proxy [install|apply|test|status|logs]  split-routing proxy (mihomo): only listed sites use the upstream
+  tv [connect|install|proxy|vpn|apps|shell]  manage an Android TV / Google TV box over adb
 
-数据
-  backup [init|run|snapshots|check]  restic 备份 \$DATA_DIR（默认 run）
-  schedule [install|uninstall]       安装/卸载 launchd 定时任务（每日备份）
+Data & schedules
+  backup [init|run|snapshots|check]  restic backup of \$DATA_DIR (default: run)
+  schedule [install|uninstall]       install/remove launchd jobs (backup, media cleanup, heartbeat)
 
-可用 stack: $(all_stacks | tr '\n' ' ')
+Available stacks: $(all_stacks | tr '\n' ' ')
 EOF
 }
 
@@ -57,24 +58,35 @@ for_stacks() {
   done
 }
 
+list_stacks() {
+  local enabled=" " s mark
+  if [ -f "$CHI_ROOT/.env" ]; then load_env; enabled=" $(resolve_stacks) "; fi
+  for s in $(all_stacks); do
+    case "$enabled" in *" $s "*) mark="*" ;; *) mark=" " ;; esac
+    printf ' %s %-12s %s\n' "$mark" "$s" "$(stack_conf "$s" DESCRIPTION)"
+  done
+  echo "   (* = enabled in CHI_STACKS)"
+}
+
 cmd="${1:-help}"
 [ "$#" -gt 0 ] && shift
 
 case "$cmd" in
-  init)       exec "$CHI_ROOT/scripts/init-env.sh" "$@" ;;
-  bootstrap)  exec "$CHI_ROOT/scripts/bootstrap.sh" "$@" ;;
-  doctor)     exec "$CHI_ROOT/scripts/doctor.sh" "$@" ;;
+  init)         exec "$CHI_ROOT/scripts/init-env.sh" "$@" ;;
+  bootstrap)    exec "$CHI_ROOT/scripts/bootstrap.sh" "$@" ;;
+  doctor)       exec "$CHI_ROOT/scripts/doctor.sh" "$@" ;;
   remote-check) exec "$CHI_ROOT/scripts/remote-check.sh" "$@" ;;
-  unattended) exec "$CHI_ROOT/scripts/unattended.sh" "$@" ;;
-  update)     exec "$CHI_ROOT/scripts/update.sh" "$@" ;;
-  serve)      exec "$CHI_ROOT/scripts/tailscale-serve.sh" "$@" ;;
-  backup)     exec "$CHI_ROOT/scripts/backup.sh" "$@" ;;
-  schedule)   exec "$CHI_ROOT/scripts/schedule.sh" "$@" ;;
-  proxy)      exec "$CHI_ROOT/scripts/proxy.sh" "$@" ;;
-  fetch)      exec "$CHI_ROOT/scripts/media.sh" fetch "$@" ;;
-  media)      exec "$CHI_ROOT/scripts/media.sh" "$@" ;;
-  onboard)    exec "$CHI_ROOT/scripts/onboard.sh" "$@" ;;
-  tv)         exec "$CHI_ROOT/scripts/tv.sh" "$@" ;;
+  unattended)   exec "$CHI_ROOT/scripts/unattended.sh" "$@" ;;
+  update)       exec "$CHI_ROOT/scripts/update.sh" "$@" ;;
+  serve)        exec "$CHI_ROOT/scripts/tailscale-serve.sh" "$@" ;;
+  backup)       exec "$CHI_ROOT/scripts/backup.sh" "$@" ;;
+  schedule)     exec "$CHI_ROOT/scripts/schedule.sh" "$@" ;;
+  proxy)        exec "$CHI_ROOT/scripts/proxy.sh" "$@" ;;
+  fetch)        exec "$CHI_ROOT/scripts/media.sh" fetch "$@" ;;
+  media)        exec "$CHI_ROOT/scripts/media.sh" "$@" ;;
+  onboard)      exec "$CHI_ROOT/scripts/onboard.sh" "$@" ;;
+  tv)           exec "$CHI_ROOT/scripts/tv.sh" "$@" ;;
+  stacks)       list_stacks ;;
   up|down|restart|ps)
     load_env
     require_docker
@@ -86,7 +98,7 @@ case "$cmd" in
     for_stacks "$cmd" "$@"
     ;;
   logs)
-    [ "$#" -ge 1 ] || die "用法: chi logs <stack> [service]"
+    [ "$#" -ge 1 ] || die "Usage: chi logs <stack> [service]"
     load_env
     require_docker
     stack="$1"; shift

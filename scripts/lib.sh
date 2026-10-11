@@ -1,8 +1,8 @@
 # shellcheck shell=bash
-# 公共函数。被 bin/chi 和 scripts/*.sh source，不单独执行。
+# Shared helpers. Sourced by bin/chi and scripts/*.sh; never executed directly.
 #
-# 注意：macOS 自带的是 bash 3.2（2007 年的版本，因为 GPLv3 授权问题苹果不升级）。
-# 所以这里刻意不用：关联数组、mapfile、${var,,}、空数组的 "${a[@]}"（set -u 下会报错）。
+# Portability: macOS ships bash 3.2 (2007; Apple won't ship GPLv3 bash). So, deliberately:
+# no associative arrays, no mapfile, no ${var,,}, no "${a[@]}" on possibly-empty arrays (set -u).
 
 CHI_ROOT="${CHI_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 export CHI_ROOT
@@ -22,15 +22,15 @@ is_macos() { [ "$(uname -s)" = "Darwin" ]; }
 have()     { command -v "$1" >/dev/null 2>&1; }
 
 require_macos() {
-  is_macos || die "这一步只能在 macOS 上跑（当前：$(uname -s)）"
+  is_macos || die "This step only runs on macOS (current: $(uname -s))"
 }
 
-# Homebrew 在 Apple Silicon 上装在 /opt/homebrew，非交互 shell（launchd）里 PATH 里没有它。
+# Homebrew lives in /opt/homebrew on Apple Silicon, which non-interactive shells (launchd, ssh -c) don't have on PATH.
 ensure_brew_path() {
   if [ -x /opt/homebrew/bin/brew ]; then
     eval "$(/opt/homebrew/bin/brew shellenv)"
   fi
-  # OrbStack 把 docker CLI 放在这里
+  # OrbStack installs the docker CLI here
   if [ -d "$HOME/.orbstack/bin" ]; then
     PATH="$HOME/.orbstack/bin:$PATH"
   fi
@@ -38,7 +38,7 @@ ensure_brew_path() {
 }
 
 load_env() {
-  [ -f "$CHI_ROOT/.env" ] || die "没有 $CHI_ROOT/.env —— 先跑 'bin/chi init'"
+  [ -f "$CHI_ROOT/.env" ] || die "Missing $CHI_ROOT/.env - run 'bin/chi init' first"
   set -a
   # shellcheck disable=SC1091
   . "$CHI_ROOT/.env"
@@ -47,8 +47,8 @@ load_env() {
   export DATA_DIR
 }
 
-# 在 KEY=VALUE 文件里设置一个键（存在就替换，不存在就追加）。
-# 用 awk 写临时文件，避开 BSD sed 和 GNU sed 的 -i 差异。
+# Set KEY=VALUE in a dotenv-style file (replace if present, append otherwise).
+# Writes through awk + a temp file to avoid BSD vs GNU `sed -i` differences.
 set_kv() {
   local file="$1" key="$2" value="$3" tmp
   tmp="$(mktemp)"
@@ -67,12 +67,12 @@ get_kv() {
 }
 
 rand_hex() { openssl rand -hex "${1:-32}"; }
-# 不用 `tr </dev/urandom | head`：head 提前退出会让 tr 收到 SIGPIPE，在 pipefail 下整个脚本被杀
+# Not `tr </dev/urandom | head`: head exits early, tr gets SIGPIPE, and pipefail kills the script.
 rand_alnum() { openssl rand -base64 96 | LC_ALL=C tr -dc 'A-Za-z0-9' | cut -c1-"${1:-32}"; }
 
-# 渲染模板：把文件里的 __NAME__ 换成环境变量 TPL_NAME 的值（字面量替换）。
-# 用法：TPL_FOO=bar TPL_BAZ=qux render_tmpl file.tmpl > out
-# 不用 sed（& / # 是特殊字符），也不用 awk -v（会把 \b 之类转义掉）；值走 ENVIRON，原样不动。
+# Render a template: replace every __NAME__ with the value of env var TPL_NAME (literal replacement).
+#   TPL_FOO=bar TPL_BAZ=qux render_tmpl file.tmpl > out
+# Not sed (& / # are special) and not awk -v (it interprets escapes like \b); values go through ENVIRON verbatim.
 render_tmpl() {
   awk '
     function rep(s, from, to,   i, out) {
@@ -85,19 +85,22 @@ render_tmpl() {
 }
 
 lan_ip() { ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo ""; }
-# chi 用的是 brew 装的 tailscaled（系统守护进程，开机不用登录就上线）。Mac 上如果还装着 Tailscale.app，
-# 不带 --socket 的 CLI 会优先连 App 的实例，读到的是另一个节点（常常是 stopped），所以统一显式指定 socket。
+
+# chi runs the Homebrew tailscaled as a system daemon (online at boot, before anyone logs in). If Tailscale.app
+# is also installed, the CLI without --socket talks to the app's instance instead - often a different, stopped
+# node - so on macOS every call pins the daemon's socket.
 TS_SOCK=/var/run/tailscaled.socket
-if is_macos; then
+if is_macos && [ -S "$TS_SOCK" ]; then
   tailscale()  { command tailscale --socket="$TS_SOCK" "$@"; }
-  sudo_ts()    { sudo "$(command -v tailscale)" --socket="$TS_SOCK" "$@"; }
+  sudo_ts()    { sudo "$(type -P tailscale)" --socket="$TS_SOCK" "$@"; }
 else
-  sudo_ts()    { sudo "$(command -v tailscale)" "$@"; }
+  sudo_ts()    { sudo "$(type -P tailscale)" "$@"; }
 fi
 ts_ip()  { tailscale ip -4 2>/dev/null | head -n1 || true; }
 
-# 自动登录是否真的生效：只看 loginwindow 的 autoLoginUser 不够——密码没存进 /etc/kcpassword 时
-# 设置项还在但开机不会登录。以 sysadminctl 的状态 + kcpassword 文件为准。输出生效的用户名，没生效输出空。
+# Is auto-login actually in effect? `autoLoginUser` alone is not enough: when the password never made it into
+# /etc/kcpassword the preference is set but the Mac still stops at the login window. Trust `sysadminctl` + the
+# kcpassword file. Prints the user when effective, nothing otherwise.
 autologin_effective() {
   local u
   u="$(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null || true)"
@@ -105,7 +108,12 @@ autologin_effective() {
   return 0
 }
 
-# 所有 stack 名（stacks/ 下的目录）
+# ---------- stacks ----------
+# A stack is a directory under stacks/ with a compose.yaml (or a fetch.sh that produces one) and an optional
+# stack.conf manifest:
+#   DESCRIPTION="..."                    one line, shown by `chi stacks`
+#   SERVE="443=3000 8001=3001"           Tailscale HTTPS exposure, <https_port>=<local_port> pairs
+
 all_stacks() {
   local d
   for d in "$CHI_ROOT"/stacks/*/; do
@@ -113,7 +121,7 @@ all_stacks() {
   done
 }
 
-# .env 里 CHI_STACKS 启用的 stack；命令行给了就用命令行的
+# Stacks to act on: the ones given on the command line, else CHI_STACKS from .env
 resolve_stacks() {
   if [ "$#" -gt 0 ]; then
     echo "$@"
@@ -124,27 +132,35 @@ resolve_stacks() {
 
 stack_dir() {
   local d="$CHI_ROOT/stacks/$1"
-  [ -d "$d" ] || die "没有这个 stack：$1（可选：$(all_stacks | tr '\n' ' ')）"
+  [ -d "$d" ] || die "Unknown stack: $1 (available: $(all_stacks | tr '\n' ' '))"
   echo "$d"
 }
 
-# 统一的 docker compose 调用：
-#   -p chi-<stack>          项目名，容器/网络/卷都带这个前缀
-#   --env-file .env         根目录的全局配置
-#   --env-file stacks/x/.env 如果 stack 自己有（比如 Immich 的官方 .env）
+# Read one key from a stack's manifest without polluting the caller's environment.
+stack_conf() {
+  local stack="$1" key="$2" f="$CHI_ROOT/stacks/$1/stack.conf"
+  [ -f "$f" ] || return 0
+  # shellcheck disable=SC1090,SC2034
+  ( DESCRIPTION=""; SERVE=""; . "$f"; eval "printf '%s\n' \"\${$key:-}\"" )
+}
+
+# Unified docker compose call:
+#   -p chi-<stack>               project name; containers/networks/volumes get this prefix
+#   --env-file .env              global configuration (repo root)
+#   --env-file stacks/x/.env     stack-local env if present (e.g. Immich's upstream .env)
 #   -f compose.yaml [-f compose.override.yaml]
 compose() {
   local stack="$1"; shift
   local dir; dir="$(stack_dir "$stack")"
   if [ ! -f "$dir/compose.yaml" ]; then
     if [ -x "$dir/fetch.sh" ]; then
-      log "$stack: compose.yaml 不在仓库里，运行 fetch.sh 拉取上游版本"
+      log "$stack: compose.yaml is not vendored; running fetch.sh to pull the upstream version"
       "$dir/fetch.sh"
     else
-      die "$dir/compose.yaml 不存在"
+      die "$dir/compose.yaml not found"
     fi
   fi
-  # 后面的 --env-file 覆盖前面的：根 .env 放最后，全局配置优先
+  # A later --env-file overrides an earlier one: the root .env goes last so global settings win.
   set -- -p "chi-$stack" --env-file "$CHI_ROOT/.env" "$@"
   if [ -f "$dir/.env" ]; then
     set -- --env-file "$dir/.env" "$@"
@@ -162,5 +178,5 @@ docker_ready() {
 
 require_docker() {
   ensure_brew_path
-  docker_ready || die "docker 连不上。OrbStack/Colima 起来了吗？（open -a OrbStack 或 colima start）"
+  docker_ready || die "Cannot reach docker. Is OrbStack/Colima running? (open -a OrbStack, or colima start)"
 }

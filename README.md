@@ -1,138 +1,163 @@
-# chi-service
+# chi-server
 
-把一台 Mac mini 变成家里的 **always-on 服务器 / 中枢**：一条命令装机，一条命令起服务，配置全在 Git 里，坏了能从备份恢复。
+chi-server turns an Apple Silicon Mac mini into an always-on home server. A single CLI, `bin/chi`, provisions
+macOS, starts containerised services in self-contained "stacks", publishes them over HTTPS on your private
+Tailscale network, backs up their data, and checks that everything still works after a reboot.
 
-```
-                         你的手机 / 笔记本（装 Tailscale，在哪都能连）
-                                       │  WireGuard 加密，不开任何公网端口
-                                       ▼
-┌──────────────────────────── Mac mini (macOS) ─────────────────────────────┐
-│  tailscaled（系统守护进程，开机即上线）── tailscale serve ── HTTPS 证书自动签 │
-│        │                                                                    │
-│        ├─ :443  Homepage 首页 ──────┐                                        │
-│        ├─ :8001 Uptime Kuma 监控    │                                        │
-│        ├─ :8002 Dozzle 日志         │  OrbStack / Colima（Linux 轻量虚拟机）   │
-│        ├─ :8003 Open WebUI ─────────┤  docker compose，按 stack 分组          │
-│        ├─ :8004 n8n 自动化          │  数据全在 ~/srv/data                    │
-│        ├─ :8005 Vaultwarden 密码    │                                        │
-│        └─ :8006 Immich 相册 ────────┘                                        │
-│                     │                                                       │
-│        Ollama（原生，用 Metal GPU）◄── host.docker.internal:11434             │
-│                                                                             │
-│  launchd 每天 4:17 ── restic ──► 外置盘 / Backblaze B2 / S3（加密、增量）      │
-└─────────────────────────────────────────────────────────────────────────────┘
-```
+Everything that defines the server lives in this repository. Data lives in one directory (`DATA_DIR`) and
+secrets live in one file (`.env`). If the machine dies, you clone the repo on a new Mac, restore those two
+things from backup, and run the same commands again.
 
-## 先说实话：Mac mini 当服务器的优点和坑
+## Who it is for
 
-**优点**：待机 5W 左右、几乎无声；Apple Silicon 的统一内存让它是**同价位跑本地大模型最好的机器**；macOS 稳定，能顺便当 Time Machine 服务器、iMessage 网关。
+- You own (or plan to buy) an Apple Silicon Mac mini running **macOS 26 or newer** and want it to run 24/7.
+- You want local AI (Ollama on the Metal GPU), a password manager, a media library, automation, or a photo
+  library without exposing ports on your router.
+- You are comfortable with a terminal, SSH, and editing a `.env` file.
 
-**坑**（这个仓库的设计都是围绕它们的）：
+If you only need Linux containers and do not care about local LLMs, a small x86 box running Linux is a more
+conventional choice. The Mac mini earns its place with unified memory for local models, very low idle power,
+and silence.
 
-| 坑 | 后果 | 本仓库的处理 |
+## Features
+
+| Module | What you get | Docs |
 |---|---|---|
-| Docker 在 macOS 上跑在 Linux 虚拟机里 | 容器**用不了 GPU / 神经网络引擎**；容器里看到的 CPU/内存是 VM 的 | 吃 GPU 的（Ollama）原生跑；其余进容器 |
-| Docker 运行时是“登录后才启动”的用户级 App | 重启后**没人登录 = 服务全挂** | 自动登录 or FileVault 远程解锁，二选一，见 [macos-setup](docs/macos-setup.md) |
-| FileVault 开着时重启卡在解锁界面 | 断电恢复后服务不会自己回来 | macOS 26 支持 SSH 预启动解锁（仅限局域网），详见文档 |
-| macOS 自带 bash 3.2 | 现代 bash 写法会报错 | 脚本全部按 3.2 写，CI 跑 shellcheck |
-| Docker Desktop 重、商用收费 | 浪费内存 | 默认 OrbStack（个人免费），可切 Colima（纯开源） |
+| `core` | Homepage dashboard, Uptime Kuma monitoring, Dozzle container logs | [core](docs/modules/core.md) |
+| `ai` | Open WebUI in front of a native Ollama that uses the Metal GPU | [ai](docs/modules/ai.md) |
+| `automation` | n8n workflow automation, with access to local models | [automation](docs/modules/automation.md) |
+| `vault` | Vaultwarden (Bitwarden-compatible password manager) | [vault](docs/modules/vault.md) |
+| `photos` | Immich photo library, using the upstream compose file | [photos](docs/modules/photos.md) |
+| `media` | Jellyfin media server, MeTube (yt-dlp) downloader, subscriptions, live TV | [media](docs/modules/media.md) |
+| `public` | Cloudflare Tunnel for the few things that must be public, on an isolated network | [public](docs/modules/public.md) |
+| Split routing | mihomo proxy that routes only selected sites through an upstream proxy | [split-routing](docs/modules/split-routing.md) |
+| Android TV | Manage an Android TV / Google TV box over adb: sideload, proxy, always-on VPN | [android-tv](docs/modules/android-tv.md) |
 
-如果你只想跑 Linux 容器、不在乎本地大模型，一台二手 N100 小主机装 Debian 会更“正统”。Mac mini 的价值在 **AI + 低功耗 + Apple 生态**，这套配置就是冲着这个设计的。
+Platform features shared by all modules:
 
-## 快速开始
+- **One-command provisioning**: Homebrew, server-grade macOS settings (no sleep, restart after power loss,
+  firewall, SSH), container runtime (OrbStack or Colima), Tailscale as a system daemon, Ollama.
+- **Private HTTPS** for every service through `tailscale serve`. No domain, no port forwarding, automatic
+  certificates.
+- **Unattended reboots**: `chi unattended` turns FileVault off, enables auto-login, and locks the screen right
+  after login so services come back after a power cut.
+- **Backups** with restic (local disk, Backblaze B2, S3/R2), consistent snapshots of SQLite-based apps.
+- **Alerts**: ntfy push notifications from Uptime Kuma and an external healthchecks.io heartbeat.
+- **Health checks** on the server (`chi doctor`) and end-to-end from a client machine (`chi remote-check`).
+- **Guest access** for friends and family: an onboarding page, Tailscale node sharing with port-level grants,
+  and separate macOS accounts for screen sharing.
 
-在 Mac mini 上（先完成 [docs/macos-setup.md](docs/macos-setup.md) 里“装机前”那几步）：
+## Architecture
+
+```
+            Your laptop / phone (Tailscale client, anywhere)
+                              |
+                              |  WireGuard, no open router ports
+                              v
++---------------------------- Mac mini (macOS 26+) -------------------------------+
+|  tailscaled (system daemon, online at boot)                                     |
+|    `- tailscale serve: https://<host>.<tailnet>.ts.net[:port]  (auto TLS)       |
+|         :443  Homepage      :8001 Uptime Kuma   :8002 Dozzle                    |
+|         :8003 Open WebUI    :8004 n8n           :8005 Vaultwarden               |
+|         :8006 Immich        :8009 Jellyfin      :8010 MeTube                    |
+|         :8007 mihomo UI     :8008 onboarding page                               |
+|                     |                                                           |
+|                     v  127.0.0.1:<port>                                         |
+|  OrbStack / Colima (Linux VM) -- docker compose projects chi-<stack>            |
+|         data in $DATA_DIR (default ~/srv/data)                                  |
+|                     |                                                           |
+|                     `- host.docker.internal:11434 --> Ollama (native, Metal)    |
+|                                                                                 |
+|  public stack: cloudflared --(isolated network)--> public apps                 |
+|                     ^ outbound only                                             |
+|  launchd: restic backup, media cleanup, IPTV refresh, heartbeat                 |
++---------------------------------------------------------------------------------+
+                      |
+                      v
+            Cloudflare edge (only for the public stack)
+```
+
+See [docs/architecture.md](docs/architecture.md) for the components, the boot sequence and the design decisions.
+
+## Quick start
+
+On the Mac mini, after the physical and manual macOS steps in [Getting started](docs/getting-started.md):
 
 ```bash
-git clone https://github.com/chichasescheese/chi-service.git ~/chi-service
-cd ~/chi-service
+git clone https://github.com/ChiChasesCheese/chi-server.git ~/chi-server
+cd ~/chi-server
 
-bin/chi init            # 生成 .env（随机密钥、时区、路径），然后打开 .env 看一遍
-bin/chi bootstrap       # chifig 个人环境 → Homebrew → 系统设置 → OrbStack → Tailscale → Ollama（会要 sudo）
-bin/chi init            # Tailscale 登录后再跑一次，自动填 TS_FQDN
-bin/chi up              # 启动 .env 里 CHI_STACKS 列出的服务
-bin/chi serve           # 通过 Tailscale 以 HTTPS 暴露
-bin/chi backup init     # 初始化备份仓库（先接好外置盘或填好 B2）
-bin/chi schedule        # 每天自动备份
-bin/chi doctor          # 体检，全绿就完事
+bin/chi init          # create .env (timezone, random secrets); review it, set CHI_STACKS
+bin/chi bootstrap     # Homebrew, macOS settings, OrbStack, Tailscale, Ollama (asks for sudo)
+bin/chi init          # again, after Tailscale login: fills in TS_FQDN
+bin/chi up            # start every stack listed in CHI_STACKS
+bin/chi serve         # publish them over HTTPS on your tailnet
+bin/chi doctor        # health check; fix anything it flags
 ```
 
-然后在任何装了 Tailscale 的设备上打开 `https://<你的机器>.<tailnet>.ts.net`。
+Then open `https://<CHI_HOSTNAME>.<your-tailnet>.ts.net` from any device on your tailnet.
 
-> 建议加个 alias：`echo 'alias chi=~/chi-service/bin/chi' >> ~/.zshrc`
+Optional next steps: `chi unattended` (survive reboots), `chi backup init` and `chi schedule` (backups and
+jobs). Add an alias so you can type `chi` instead of `bin/chi`:
 
-## 命令速查
+```bash
+echo 'alias chi=~/chi-server/bin/chi' >> ~/.zshrc
+```
 
-| 命令 | 作用 |
+## Commands
+
+| Command | Purpose |
 |---|---|
-| `chi up / down / restart / ps [stack…]` | 起停服务；不写 stack = 全部启用的 |
-| `chi logs <stack> [service]` | 跟日志 |
-| `chi update [--no-brew]` | 升级 brew 包 + 镜像（手动跑，每 1–2 周一次） |
-| `chi serve [apply\|status\|reset]` | Tailscale HTTPS 暴露 |
-| `chi backup [init\|run\|snapshots\|check]` | restic 备份 |
-| `chi schedule [install\|uninstall]` | launchd 定时备份 |
-| `chi doctor` | 只读体检（在 mini 上） |
-| `chi remote-check` | 端到端体检（在控制机 MacBook 上，从用户视角） |
-| `chi unattended` | 无人值守：关 FileVault、自动登录、开机即锁屏（`ssh -t` 里跑，要密码） |
-| `chi fetch <url>` | 下载视频到媒体库（YouTube、B 站等） |
-| `chi media [usage\|clean\|scan\|sub\|iptv]` | 媒体库占用 / 清理 / 重扫 / 追剧订阅 / 央视卫视直播 |
-| `chi onboard` | 生成给自己和朋友的接入页面 + 邀请文字 |
-| `chi proxy [install\|apply\|test\|status]` | 回国分流：只有大陆视频站走你的回国 VPN（[china-media](docs/china-media.md)） |
-| `chi tv [connect\|install\|proxy]` | adb 远程管理 Google TV 盒子：侧载 App、设代理 |
+| `chi init` | Create or complete `.env` |
+| `chi bootstrap [step...]` | Provision the Mac: `dotfiles brew macos runtime tailscale ollama` |
+| `chi unattended` | FileVault off, auto-login, lock at login (run with `ssh -t`) |
+| `chi doctor` | Read-only health check on the server |
+| `chi remote-check [host]` | End-to-end check from a client machine |
+| `chi stacks` | List stacks and which are enabled |
+| `chi up / down / restart / ps [stack...]` | Manage stacks (default: all of `CHI_STACKS`) |
+| `chi logs <stack> [service]` | Follow logs |
+| `chi update [--no-brew]` | Upgrade Homebrew packages and container images |
+| `chi serve [apply\|status\|reset]` | Publish stacks over HTTPS on your tailnet |
+| `chi fetch <url> [folder]` | Queue a download in MeTube |
+| `chi media [usage\|clean\|scan\|sub\|iptv]` | Media library management |
+| `chi onboard` | Generate the onboarding page and an invite message |
+| `chi proxy [install\|apply\|test\|status\|logs]` | Split-routing proxy (mihomo) |
+| `chi tv [connect\|install\|proxy\|vpn\|apps\|shell]` | Manage an Android TV box over adb |
+| `chi backup [init\|run\|snapshots\|check]` | restic backup of `DATA_DIR` |
+| `chi schedule [install\|uninstall]` | Install or remove launchd jobs |
 
-## Stacks（在 `.env` 的 `CHI_STACKS` 里开关）
+Full reference: [docs/cli.md](docs/cli.md).
 
-| stack | 内容 | 内存占用（大约） | 建议 |
-|---|---|---|---|
-| `core` | Homepage、Uptime Kuma、Dozzle | ~300 MB | 必开 |
-| `ai` | Open WebUI（+ 宿主机 Ollama） | 1 GB + 模型大小 | 16 GB 起有意义 |
-| `automation` | n8n | ~300 MB | “中枢”的核心 |
-| `vault` | Vaultwarden | ~50 MB | 强烈推荐，前提是备份做好 |
-| `photos` | Immich | 2–4 GB | 16 GB+ 内存、硬盘够大再开 |
-| `media` | Jellyfin + MeTube（小型 NAS / 下载器） | ~500 MB | 投影 / 电视盒子看片，见 [media](docs/media.md) |
-
-每个服务的用法、首次配置、内存怎么分配给模型，见 [docs/services.md](docs/services.md)。
-
-## 目录结构
+## Repository layout
 
 ```
-bin/chi                 唯一入口（读它就知道能干什么）
-scripts/
-  lib.sh                公共函数：日志、读 .env、统一的 compose 调用
-  init-env.sh           生成/补全 .env
-  bootstrap.sh          装机：brew / macos / runtime / tailscale / ollama
-  macos.sh              系统设置（电源、防火墙、SSH、更新策略），每行都有注释
-  tailscale-serve.sh    端口映射表在这里
-  backup.sh             restic 备份策略
-  update.sh             升级
-  doctor.sh             体检
-  schedule.sh           launchd 定时任务
-  proxy.sh              mihomo 回国分流
-  tv.sh                 adb 管理电视盒子
-  media.sh              下载 / 媒体库清理
-  onboard.sh            生成接入页面和 PAC
-config/mihomo/          mihomo 配置模板（分流规则在这里改）
-config/onboarding/      接入页面和 PAC 模板
-stacks/<name>/
-  compose.yaml          这个 stack 的服务定义
-  pre-up.sh             （可选）启动前钩子
-  fetch.sh              （可选）从上游拉 compose（Immich 用）
-launchd/                plist 模板
-docs/                   所有“为什么”
-Brewfile                宿主机工具
-.env.example            全部配置项及说明
+bin/chi                 the single entry point
+scripts/                one script per command, plus lib.sh (shared helpers)
+stacks/<name>/          compose.yaml, stack.conf, optional pre-up.sh / fetch.sh
+config/                 templates: mihomo config, onboarding page, PAC file
+launchd/                plist template for scheduled jobs
+docs/                   documentation
+Brewfile                host tools installed by `chi bootstrap brew`
+.env.example            every setting, with comments
 ```
 
-**原则**：仓库里只有“怎么跑”，没有数据和秘密。数据在 `DATA_DIR`（默认 `~/srv/data`），秘密在 `.env`（不进 git）。机器炸了 = 新机器 clone 仓库 + 从 restic 恢复 `DATA_DIR` 和 `.env`。
+## Documentation
 
-## 文档
+- [Getting started](docs/getting-started.md): from a new Mac mini to running services
+- [Architecture](docs/architecture.md): components, networking, boot sequence, design decisions
+- [Configuration](docs/configuration.md): every `.env` key
+- [CLI reference](docs/cli.md)
+- Modules: [core](docs/modules/core.md), [ai](docs/modules/ai.md), [automation](docs/modules/automation.md),
+  [vault](docs/modules/vault.md), [photos](docs/modules/photos.md), [media](docs/modules/media.md),
+  [public](docs/modules/public.md), [split-routing](docs/modules/split-routing.md),
+  [android-tv](docs/modules/android-tv.md)
+- [Remote access](docs/remote-access.md): reaching and managing the server from other machines
+- [Guest access](docs/guest-access.md): giving friends and family access
+- [Operations](docs/operations.md): unattended mode, updates, alerts, backups, troubleshooting
+- [Security](docs/security.md): threat model and hardening
+- [Adding a stack](docs/adding-a-stack.md)
+- [Roadmap](docs/roadmap.md)
 
-1. [macos-setup.md](docs/macos-setup.md) — 装机清单，**必须手点的系统设置**，FileVault 怎么选
-2. [architecture.md](docs/architecture.md) — 每个技术选型的理由、放弃了什么、参考了哪些开源项目
-3. [remote-access.md](docs/remote-access.md) — Tailscale / 公网暴露 / 自己的域名
-4. [services.md](docs/services.md) — 每个服务怎么用
-5. [operations.md](docs/operations.md) — 日常运维、升级、**恢复演练**、排障
-6. [media.md](docs/media.md) — 小型 NAS：下载 → Jellyfin → onn 盒子 / 投影，256 GB 硬盘怎么分
-7. [onboarding.md](docs/onboarding.md) — 你的 iPhone / MacBook 和朋友怎么接入，ACL 怎么配
-8. [china-media.md](docs/china-media.md) — 回国分流：在美国看 B 站等大陆限定内容，投影/电视盒子怎么配
-9. [ideas.md](docs/ideas.md) — 还能拿它干什么（Home Assistant、AI agent、媒体库……）
+## Contributing and license
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md). Released under the [MIT License](LICENSE).

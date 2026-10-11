@@ -1,8 +1,8 @@
 # https://gethomepage.dev/widgets/
-# 注意：resources 显示的是容器虚拟机（OrbStack/Colima VM）的资源，不是 Mac 本身。
-# 看宿主机真实状态用 ssh 上去跑 btop。
+# Note: resources shows the container VM (OrbStack/Colima VM), not the Mac itself.
+# For the real host numbers, ssh in and run btop.
 - resources:
-    label: 容器 VM
+    label: Container VM
     cpu: true
     memory: true
 - datetime:
