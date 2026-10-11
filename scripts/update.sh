@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# 升级：brew 包 + 容器镜像。
+# Upgrade: brew packages + container images.
 #
-# 为什么不用 Watchtower 自动更新：
-#   - containrrr/watchtower 已于 2025-12 归档停更
-#   - 更根本的原因：无人值守自动升级 = 某天半夜某个服务因为破坏性变更挂了而你不知道。
-#     家用服务器的最佳实践是：每周/每两周手动跑一次 chi update，跑之前扫一眼 release notes（尤其 Immich）。
-#   - 想要“有新版本时通知我”而不是“自动升级”，可以加 What's Up Docker (WUD)，见 docs/ideas.md
+# Why not auto-update with Watchtower:
+#   - containrrr/watchtower was archived (unmaintained) in 2025-12
+#   - More fundamentally: unattended auto-upgrades = some night a service breaks on a breaking change and you don't know.
+#     Best practice for a home server: run chi update by hand every week or two, after skimming the release notes
+#     (especially Immich).
+#   - If you want "tell me when there's a new version" rather than "upgrade automatically", add What's Up Docker (WUD);
+#     see docs/roadmap.md
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 ensure_brew_path
@@ -15,9 +17,9 @@ if [ "${1:-}" != "--no-brew" ]; then
   log "brew update && upgrade"
   brew update
   brew upgrade
-  # 注意：brew 升级 ollama 后需要重启服务
+  # Note: after brew upgrades ollama the service needs a restart
   if brew services list 2>/dev/null | grep -q '^ollama.*started'; then brew services restart ollama; fi
-  # mihomo 升级后二进制路径变了，防火墙要重新放行，否则局域网设备连不上代理
+  # After a mihomo upgrade the binary path changes; re-allow it in the firewall or LAN devices can't reach the proxy
   if brew services list 2>/dev/null | grep -q '^mihomo.*started'; then
     "$CHI_ROOT/scripts/proxy.sh" firewall
     brew services restart mihomo
@@ -27,13 +29,13 @@ fi
 require_docker
 for s in $(resolve_stacks); do
   if [ "$s" = photos ]; then
-    warn "photos：不自动换新版 Immich 的 compose。读完 release notes 后手动：stacks/photos/fetch.sh --force"
+    warn "photos: the Immich compose file is not swapped automatically. After reading the release notes run: stacks/photos/fetch.sh --force"
   fi
   log "$s: pull"
   compose "$s" pull
   compose "$s" up -d --remove-orphans
 done
 
-log "清理不再使用的旧镜像"
+log "Removing unused old images"
 docker image prune -f >/dev/null
-ok "升级完成。跑一下 chi doctor 确认"
+ok "Upgrade done. Run chi doctor to confirm"

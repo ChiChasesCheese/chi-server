@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# 安装 launchd 定时任务（macOS 的 cron）。为什么不用 cron：cron 在 macOS 上是“遗留”的，
-# 睡眠期间错过的任务不会补跑，权限（TCC）也更难管。launchd 是 Apple 的正路。
+# Install launchd scheduled jobs (macOS's cron). Why not cron: on macOS cron is "legacy", jobs missed during
+# sleep are never caught up, and permissions (TCC) are harder to manage. launchd is Apple's supported way.
 #
-# 任务：
-#   backup       每天 BACKUP_HOUR:17   chi backup run
-#   media-clean  每天 05:47            chi media clean（只在启用了 media stack 时安装）
-#   media-iptv   每天 05:27            chi media iptv（同上；直播源经常换地址，每天重新试播一遍）
+# Jobs:
+#   backup       daily BACKUP_HOUR:17   chi backup run
+#   media-clean  daily 05:47            chi media clean (installed only when the media stack is enabled)
+#   media-iptv   daily 05:27            chi media iptv (same; live-TV sources change URLs often, so re-probe them daily)
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 require_macos
@@ -22,7 +22,7 @@ install_job() {
   plutil -lint "$dest" >/dev/null
   launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
   launchctl bootstrap "gui/$(id -u)" "$dest"
-  ok "${name}：每天 $hour:$minute → chi $cmd ${sub}（日志 ~/Library/Logs/chi-service/$name.log）"
+  ok "${name}: daily ${hour}:${minute} -> chi $cmd ${sub} (log ~/Library/Logs/chi-service/${name}.log)"
 }
 
 remove_job() {
@@ -31,8 +31,8 @@ remove_job() {
   rm -f "$AGENTS/$label.plist"
 }
 
-# 外部心跳：每 5 分钟 ping 一次 healthchecks.io。mini 整机掉线（断电、断网、死机）时
-# Kuma 自己也挂了发不出告警，只能靠外部服务“没收到心跳”来报警。
+# External heartbeat: ping healthchecks.io every 5 minutes. When the whole server goes down (power, network, freeze)
+# Kuma goes down with it and can't alert, so only an outside service noticing "no heartbeat" can.
 install_heartbeat() {
   local label=com.chi-service.heartbeat dest="$AGENTS/com.chi-service.heartbeat.plist"
   if [ -z "${HC_PING_URL:-}" ]; then
@@ -55,7 +55,7 @@ PLIST
   plutil -lint "$dest" >/dev/null
   launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
   launchctl bootstrap "gui/$(id -u)" "$dest"
-  ok "heartbeat：每 5 分钟 ping 一次外部心跳"
+  ok "heartbeat: pings the external heartbeat every 5 minutes"
 }
 
 case "${1:-install}" in
@@ -65,19 +65,19 @@ case "${1:-install}" in
       install_job backup backup run "${BACKUP_HOUR:-4}" 17
     else
       remove_job backup
-      warn "RESTIC_REPOSITORY 为空：不装每日备份"
+      warn "RESTIC_REPOSITORY is empty: not installing the daily backup"
     fi
     install_heartbeat
     case " $(resolve_stacks) " in
       *" media "*) install_job media-clean media clean 5 47; install_job media-iptv media iptv 5 27 ;;
       *) remove_job media-clean; remove_job media-iptv ;;
     esac
-    [ -n "${RESTIC_REPOSITORY:-}" ] && log "手动触发备份测试：launchctl kickstart -k gui/$(id -u)/com.chi-service.backup"
+    [ -n "${RESTIC_REPOSITORY:-}" ] && log "Trigger a test backup by hand: launchctl kickstart -k gui/$(id -u)/com.chi-service.backup"
     true
     ;;
   uninstall)
     remove_job backup; remove_job media-clean; remove_job media-iptv; remove_job heartbeat
-    ok "已卸载全部定时任务"
+    ok "Removed all scheduled jobs"
     ;;
-  *) die "用法: chi schedule [install|uninstall]" ;;
+  *) die "Usage: chi schedule [install|uninstall]" ;;
 esac

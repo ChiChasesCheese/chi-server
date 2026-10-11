@@ -1,28 +1,29 @@
-# mihomo（Clash Meta 内核）配置模板。scripts/proxy.sh 会填好占位符，写到
-#   $(brew --prefix)/etc/mihomo/config.yaml   （含订阅地址，权限 600，不进 git）
+# mihomo (Clash Meta core) config template. scripts/proxy.sh fills in the placeholders and writes it to
+#   $(brew --prefix)/etc/mihomo/config.yaml   (contains the subscription URL, mode 600, not in git)
 #
-# 设计：默认全部直连，只有中国大陆的视频/音乐站点走「回国」节点。
-#   → VPN 商只能看到这些流量，而不是你的全部上网记录
-#   → 回国节点慢或者挂了，也只影响这几个站点
+# Design: everything goes DIRECT by default; only mainland-China video/music sites use the China-exit
+# nodes.
+#   -> the VPN provider only sees that traffic, not your whole browsing history
+#   -> if the China nodes are slow or down, only those sites are affected
 #
-# 文档：https://wiki.metacubex.one/en/config/
+# Docs: https://wiki.metacubex.one/en/config/
 
-mixed-port: __PORT__          # HTTP + SOCKS5 共用端口
-allow-lan: true               # 让投影仪 / 电视盒子用这个代理
+mixed-port: __PORT__          # shared HTTP + SOCKS5 port
+allow-lan: true               # lets projectors / TV boxes use this proxy
 bind-address: "*"
-# 只放行私有网段和 tailnet，防止误开端口转发后变成公网开放代理
+# Only private ranges and the tailnet, so an accidental port forward does not make this an open proxy
 lan-allowed-ips:
   - 127.0.0.0/8
-  - 10.0.0.0/8           # Xfinity 网关默认的局域网段是 10.0.0.x
+  - 10.0.0.0/8           # many home routers use 10.0.0.x
   - 172.16.0.0/12
   - 192.168.0.0/16
   - 100.64.0.0/10        # Tailscale
-  - 198.18.0.0/15        # OrbStack 容器网络（MeTube 通过 host.docker.internal 走代理）
+  - 198.18.0.0/15        # OrbStack container network (MeTube reaches the proxy via host.docker.internal)
 mode: rule
 log-level: warning
 ipv6: false
 
-# 管理 API + 网页面板（metacubexd）。只绑本机，外部访问走 `chi serve`（:8007）
+# Management API + web dashboard (metacubexd). Local only; outside access via `chi serve` (:8007)
 external-controller: 127.0.0.1:9090
 secret: "__SECRET__"
 external-ui: ./ui
@@ -42,11 +43,11 @@ proxy-providers:
     url: '__SUB_URL__'
     path: ./providers/cn-vpn.yaml
     interval: 21600
-    # 只挑大陆节点。按你的机场节点命名改 .env 里的 CLASH_CN_FILTER
+    # Only mainland-China nodes. Adjust CLASH_CN_FILTER in .env to match your provider's node names
     filter: '__CN_FILTER__'
     health-check:
       enable: true
-      # 用国内可达的 204 地址测速（gstatic 在国内出口是不通的）
+      # Probe a 204 URL reachable from inside China (gstatic is blocked from China exits)
       url: http://connect.rom.miui.com/generate_204
       interval: 300
       timeout: 5000
@@ -54,23 +55,23 @@ proxy-providers:
 
 proxy-groups:
   - name: CN
-    type: url-test              # 自动选延迟最低的大陆节点
+    type: url-test              # auto-pick the lowest-latency China node
     use: [cn-vpn]
     url: http://connect.rom.miui.com/generate_204
     interval: 300
     tolerance: 50
   - name: CN-media
-    type: select                # 面板里可以一键切成 DIRECT 临时关闭回国
+    type: select                # switch to DIRECT in the dashboard to turn the China route off temporarily
     proxies: [CN, DIRECT]
 
 rules:
-  # 局域网和 tailnet 永远直连
+  # LAN and tailnet always go direct
   - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
   - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
   - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
   - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
   - IP-CIDR,198.18.0.0/15,DIRECT,no-resolve
-  # 大陆限定内容（判断依据是 API 请求的出口 IP）
+  # Mainland-only content (decided by the exit IP of the API requests)
   - GEOSITE,bilibili,CN-media
   - GEOSITE,iqiyi,CN-media
   - GEOSITE,youku,CN-media
@@ -79,11 +80,11 @@ rules:
   - DOMAIN-SUFFIX,y.qq.com,CN-media
   - DOMAIN-SUFFIX,music.163.com,CN-media
   - DOMAIN-SUFFIX,mgtv.com,CN-media
-  - DOMAIN-SUFFIX,hitv.com,CN-media        # 芒果 TV 电视端
-  - DOMAIN-SUFFIX,gitv.tv,CN-media         # 银河奇异果（爱奇艺电视端）
-  - DOMAIN-SUFFIX,cibntv.net,CN-media      # 云视听系列（腾讯/优酷电视端）
-  - DOMAIN-SUFFIX,yangshipin.cn,CN-media   # 央视频
+  - DOMAIN-SUFFIX,hitv.com,CN-media        # Mango TV, TV app
+  - DOMAIN-SUFFIX,gitv.tv,CN-media         # GITV (iQIYI TV app)
+  - DOMAIN-SUFFIX,cibntv.net,CN-media      # CIBN apps (Tencent / Youku TV apps)
+  - DOMAIN-SUFFIX,yangshipin.cn,CN-media   # CCTV Yangshipin
   - DOMAIN-SUFFIX,cctv.com,CN-media
   - DOMAIN-SUFFIX,cntv.cn,CN-media
-  # 想加别的站点：照上面的格式在这里加，然后 chi proxy apply
+  # To add more sites: add lines here in the same format, then run chi proxy apply
   - MATCH,DIRECT

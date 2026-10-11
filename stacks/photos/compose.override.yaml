@@ -1,10 +1,12 @@
-# 对 Immich 官方 compose 的最小改动。官方文件由 fetch.sh 下载，不入库。
+# Minimal changes to Immich's official compose file. The official file is downloaded by fetch.sh
+# and not committed.
 #
-# 1) 端口只绑 BIND_ADDR（官方是 0.0.0.0:2283），外部走 `chi serve`（:8006）
-#    !override 表示整体替换而不是追加（需要 docker compose ≥ 2.24）
+# 1) Bind the port to BIND_ADDR only (upstream uses 0.0.0.0:2283); outside access via `chi serve` (:8006)
+#    !override replaces the list instead of appending to it (needs docker compose >= 2.24)
 #
-# 已知限制（说实话）：Docker 在 macOS 上用不了 Apple GPU / Neural Engine，
-# 所以 immich-machine-learning（人脸识别、智能搜索）只能跑 CPU。首次导入大图库会慢，之后增量没问题。
+# Known limitation: Docker on macOS cannot use the Apple GPU / Neural Engine, so
+# immich-machine-learning (face recognition, smart search) runs on the CPU only. The first import of a
+# large library is slow; incremental imports afterwards are fine.
 services:
   immich-server:
     ports: !override

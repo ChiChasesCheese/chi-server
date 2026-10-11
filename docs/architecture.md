@@ -1,71 +1,230 @@
-# 架构与选型：为什么这么搭
+# Architecture
 
-每个决定写清楚：选了什么、放弃了什么、什么情况下应该换。不同意哪条就改哪条，脚本都是解耦的。
+This page explains how chi-server is put together and why. Every script is decoupled, so if you disagree with a
+decision you can change that one part.
 
-## 总原则
+## Principles
 
-1. **Git 是唯一事实来源**。所有服务定义、系统设置都在仓库里，可以 review、可以回滚。不用 Portainer / Dockge 这类网页面板来改配置——它们方便，但会让“机器上的实际状态”和“仓库里写的”慢慢不一致（配置漂移）。网页上只**看**（Homepage、Dozzle），改都走 Git。
-2. **代码、数据、秘密三分离**。仓库 = 代码；`DATA_DIR` = 数据；`.env` = 秘密。备份只需要后两者。
-3. **零公网端口**。所有访问走 Tailscale。家用服务器被打穿的主要原因就是端口转发 + 弱密码/未修补漏洞。
-4. **能原生就原生，要隔离就容器**。macOS 上的容器是虚拟机里的二等公民，需要硬件加速的东西必须原生。
-5. **不做自动升级**。手动 `chi update`，你知道什么时候变了什么。
-6. **一个入口**。`bin/chi` 读一遍就知道整个系统能干什么。
+1. **Git is the source of truth.** Service definitions and system settings live in the repository. Web UIs are
+   for viewing (Homepage, Dozzle), not for changing configuration, so the machine never drifts from the repo.
+2. **Code, data and secrets are separate.** The repo is code, `DATA_DIR` is data, `.env` is secrets. Backups
+   need only the last two.
+3. **No open router ports.** Private access goes through Tailscale. Public exposure is opt-in, per service,
+   through an outbound Cloudflare Tunnel.
+4. **Native when hardware matters, containers otherwise.** Containers on macOS run in a Linux VM without GPU
+   access.
+5. **No automatic upgrades.** You run `chi update` and know what changed.
+6. **One entry point.** Reading `bin/chi` tells you everything the system can do.
 
-## 容器运行时：OrbStack（默认）/ Colima
+## Components
 
-| | OrbStack | Colima | Docker Desktop | Apple `container` |
-|---|---|---|---|---|
-| 开源 | ✗ | ✓ | ✗ | ✓ |
-| 个人使用 | 免费 | 免费 | 免费 | 免费 |
-| 商用 | $8/人/月 | 免费 | 大公司收费 | 免费 |
-| 资源占用 | 最低，动态释放内存 | 低，内存固定分配 | 高 | 低 |
-| docker compose | ✓ | ✓ | ✓ | ✗（只有第三方 apple-compose） |
-| 稳定性 / 生态 | 好 | 好 | 好 | 2026-06 才 1.0 |
+| Component | Runs as | Why |
+|---|---|---|
+| `bin/chi` + `scripts/*.sh` | Bash 3.2 scripts | Works on a fresh Mac with no extra tools. |
+| OrbStack (default) or Colima | Login item / Homebrew service | Docker runtime; runs a lightweight Linux VM. |
+| Stacks (`stacks/<name>/`) | Docker Compose projects | Isolated, reproducible services. |
+| `tailscaled` | System LaunchDaemon (Homebrew build) | Online at boot, before anyone logs in. |
+| Ollama | Homebrew login service | Native, so it can use the Metal GPU. |
+| mihomo | Homebrew service (optional) | Split-routing proxy reachable by LAN devices. |
+| launchd jobs | User LaunchAgents `com.chi-service.*` | Backups, media cleanup, IPTV refresh, heartbeat. |
+| restic | CLI, run by launchd | Encrypted, deduplicated backups. |
 
-- **选 OrbStack**：家用属于个人使用免费；内存按需分配（Colima 的 VM 是固定内存，给 8 GB 就占 8 GB），这在要和大模型抢统一内存的 Mac mini 上很重要；bind mount 文件权限处理得最好。
-- **什么时候换 Colima**：介意闭源，或者这台机器用于商业用途。`.env` 改 `CHI_RUNTIME=colima` 后 `chi bootstrap runtime`。
-- **Apple `container`**：方向是对的（每个容器一个轻量 VM，隔离更强），但没有原生 compose，生态还不成熟。一两年后再评估。
+### Why some things are native
 
-## 远程访问：Tailscale + `tailscale serve`
+- **Ollama.** Docker containers on macOS run inside a Linux VM and cannot use the Metal GPU. The same model is
+  typically several times faster natively. Ollama is installed with Homebrew; Open WebUI (a plain web app) runs
+  in a container and reaches it at `host.docker.internal:11434`. Immich machine learning, in contrast, stays in
+  its container and runs on the CPU: slower first indexing, a known trade-off.
+- **tailscaled.** The App Store / standalone Tailscale app starts only after a user logs in. The open-source
+  `tailscaled` installs as a system daemon (`tailscaled install-system-daemon`), so the Mac is reachable over SSH
+  even at the login window. When both are installed, the CLI may talk to the app's instance; `scripts/lib.sh`
+  pins every call to the daemon socket `/var/run/tailscaled.socket`.
+- **mihomo.** LAN devices (TV boxes, phones) must connect to it directly; a native service is simplest.
 
-- **为什么不是端口转发 / DDNS**：暴露攻击面，还要自己管证书。
-- **为什么不是 Cloudflare Tunnel 作为主入口**：它是给“公开给别人访问”用的，流量过 Cloudflare 解密（TLS 在他们那终止），而且大文件（Immich 上传视频）有限制。Tailscale 是点对点 WireGuard，Tailscale 公司看不到内容。
-- **为什么用 brew 的开源 `tailscaled` 而不是 App Store 版**：App Store 版是登录后才启动的；开源版装成 **LaunchDaemon，开机即上线**，没人登录也能 SSH 进来。服务器需要后者。
-- **为什么用 `tailscale serve` 而不是 Caddy 反代**：零配置自动 HTTPS，不需要域名。代价是 URL 带端口号。想要 `photos.example.com` 这种漂亮域名，见 [remote-access.md](remote-access.md)。
-- 端口统一绑在 `127.0.0.1`，只有 `tailscale serve` 能转进来；局域网里没装 Tailscale 的家人要用，把 `BIND_ADDR` 改成 `0.0.0.0`。
+## Stacks
 
-## 为什么 Ollama 不进容器
+A stack is a directory under `stacks/`:
 
-macOS 上 Docker 容器在 Linux 虚拟机里，**拿不到 Metal GPU**。同一个模型，原生 Ollama（Metal）通常比容器里（纯 CPU）快好几倍，具体倍数看模型和芯片。所以 Ollama 用 brew 装在宿主机，Open WebUI（纯 Web 应用）进容器，通过 `host.docker.internal:11434` 连过去。同理，Immich 的机器学习（人脸/语义搜索）在容器里只能用 CPU——能用，首次导入慢，这是已知取舍。
+```
+stacks/<name>/
+  compose.yaml            service definitions (or produced by fetch.sh)
+  stack.conf              manifest: DESCRIPTION and SERVE
+  compose.override.yaml   optional; merged after compose.yaml
+  pre-up.sh               optional; runs before `chi up` for this stack
+  fetch.sh                optional; downloads an upstream compose.yaml
+  .env                    optional; generated, stack-local (never committed)
+```
 
-## 备份：restic
+### Compose project naming
 
-- **为什么 restic**：增量 + 去重 + 默认加密，后端支持本地盘 / B2 / S3 / R2 / SFTP，单个二进制，十年老项目。备选 Borg（需要服务端也装 borg）、Kopia（也不错，GUI 更好）。
-- **一致性**：SQLite 类应用（Uptime Kuma、Vaultwarden、n8n、Open WebUI）在写入中途复制会得到损坏的数据库。脚本的做法是**短暂停容器→快照→启动**，增量备份一般几十秒。Postgres（Immich）用 `pg_dumpall` 在线导出，这是 Immich 官方推荐做法。
-- **3-2-1 原则**：3 份数据，2 种介质，1 份异地。建议：本机 + Time Machine 外置盘（整机）+ restic 到 B2/R2（服务数据，异地）。
-- **Time Machine 和 restic 不重复**：前者恢复整台 macOS，后者是可以在**任何机器**上恢复的服务数据。
+Every compose call goes through one function (`compose` in `scripts/lib.sh`):
 
-## 定时任务：launchd，不是 cron
+```
+docker compose -f stacks/<s>/compose.yaml [-f stacks/<s>/compose.override.yaml] \
+  -p chi-<s> [--env-file stacks/<s>/.env] --env-file .env <args>
+```
 
-cron 在 macOS 上是遗留组件：睡眠时错过的任务不补跑，权限（TCC）管理更混乱。launchd 是 Apple 的正路，`launchctl kickstart` 可以手动触发、日志路径明确。
+- The project name is `chi-<stack>`, so containers, networks and volumes get that prefix (for example the
+  public network is `chi-public_public`). `chi doctor` finds a stack's containers by the label
+  `com.docker.compose.project=chi-<stack>`.
+- The root `.env` is passed last, so global settings win over stack-local ones.
+- If `compose.yaml` is missing and `fetch.sh` exists, it runs first (the `photos` stack uses this).
 
-## 为什么不用 Watchtower
+### Stack manifest (`stack.conf`)
 
-`containrrr/watchtower` 已于 2025 年 12 月归档。更重要的是**无人值守自动升级在家用场景弊大于利**：某天半夜一个破坏性变更让服务挂了，你一周后才发现。手动 `chi update` + 读 release notes 是更好的习惯。想要“有更新时通知我”，可以加 What's Up Docker（WUD），只通知不升级。
+Plain `KEY="value"` lines, read in a subshell so they never leak into the caller's environment:
 
-## 脚本风格
+| Key | Meaning | Example |
+|---|---|---|
+| `DESCRIPTION` | One line, shown by `chi stacks`. | `"n8n workflow automation"` |
+| `SERVE` | Space-separated `<https_port>=<local_port>` pairs published by `chi serve`. Empty = nothing on the tailnet. | `"443=3000 8001=3001"` |
 
-- 全部 bash 3.2 兼容（macOS 自带版本），不依赖 brew 的新 bash 就能跑 bootstrap。
-- 全部幂等：任何一步可以重复跑。
-- `set -euo pipefail`，失败就停，不静默继续。
-- CI 跑 `shellcheck` 和 `docker compose config`。
+Current mappings:
 
-## 参考过的开源项目 / 资料
+| Stack | SERVE |
+|---|---|
+| `core` | `443=3000 8001=3001 8002=8080` |
+| `ai` | `8003=3080` |
+| `automation` | `8004=5678` |
+| `vault` | `8005=8222` |
+| `photos` | `8006=2283` |
+| `media` | `8009=8096 8010=8081` |
+| `public` | (empty) |
 
-- [smartwatermelon/mac-server-setup](https://github.com/smartwatermelon/mac-server-setup) — Mac mini 服务器自动化：分阶段装机、pmset、launchd、幂等脚本。本仓库的 `macos.sh` 思路主要参考它，但简化了（它更偏媒体服务器 + 1Password 凭据下发）。
-- [gethomepage/homepage](https://github.com/gethomepage/homepage)、[louislam/uptime-kuma](https://github.com/louislam/uptime-kuma)、[amir20/dozzle](https://github.com/amir20/dozzle)
-- [immich-app/immich](https://github.com/immich-app/immich) — 官方 compose + 备份文档
-- [restic/restic](https://github.com/restic/restic)
-- Tailscale 文档：`tailscale serve`、macOS 开源 `tailscaled` 变体
-- macOS 26 FileVault 预启动 SSH 解锁的社区实测文章（[deepakness](https://deepakness.com/raw/remote-filevault-unlock-macos-tahoe/)、[Michael Tsai 汇总](https://mjtsai.com/blog/2025/09/22/tahoe-filevault-icloud-keychain-and-ssh/)）
-- OrbStack 授权说明：<https://docs.orbstack.dev/licensing>
+`chi serve` also publishes two non-stack endpoints: `8007` -> mihomo dashboard (only while mihomo is running)
+and `8008` -> the static onboarding page generated by `chi onboard`.
+
+### Which stacks run
+
+`chi up`, `down`, `restart`, `ps`, `update`, `serve`, `backup` and `doctor` act on `CHI_STACKS` from `.env`
+when you do not name stacks on the command line.
+
+## Networking
+
+### Private: tailnet HTTPS
+
+```
+client --(WireGuard)--> tailscaled --(tailscale serve, TLS)--> 127.0.0.1:<local_port> --> container
+```
+
+- Containers bind to `${BIND_ADDR:-127.0.0.1}`. With the default, nothing is reachable from the LAN; only
+  `tailscale serve` forwards traffic in.
+- `tailscale serve` terminates TLS with a certificate Tailscale obtains from Let's Encrypt for
+  `<host>.<tailnet>.ts.net`. No domain, no DNS, no open ports.
+- Exception: Jellyfin binds to `MEDIA_BIND_ADDR` (default `0.0.0.0`) so TV boxes without Tailscale can reach
+  `http://<lan-ip>:8096`.
+- Containers reach host services at `host.docker.internal` (OrbStack provides it; compose files add
+  `host-gateway` for Colima).
+
+### Public: Cloudflare Tunnel on an isolated network
+
+```
+visitor --HTTPS--> Cloudflare edge <--outbound QUIC/HTTP2-- cloudflared --(network "public", internal)--> app
+```
+
+- `cloudflared` dials out to Cloudflare; the router opens nothing and your home IP is not in DNS.
+- Public apps sit on a Docker network with `internal: true`: no gateway, no internet, and no route to
+  `host.docker.internal`. On OrbStack, containers on normal networks **can** reach host ports bound to
+  `127.0.0.1`, so this isolation is what keeps a compromised public app away from Dozzle, Kuma and the rest.
+- Only `cloudflared` (and apps you explicitly add to the `egress` network) can reach the internet.
+
+Details: [public module](modules/public.md).
+
+## Boot sequence
+
+The key constraint: the Docker runtime and Ollama are **per-user login items**. Without a logged-in user, no
+containers run.
+
+```
+power on
+  -> macOS boots (FileVault off, so no pre-boot unlock)
+  -> tailscaled LaunchDaemon starts       (SSH over tailnet works from here)
+  -> auto-login of the server account
+       -> OrbStack starts at login -> containers with restart: unless-stopped come back
+       -> Ollama (brew services) starts
+       -> mihomo (brew services, if installed) starts
+       -> com.chi-service.lock-at-login: after 3 s, screensaver + display sleep = locked screen
+  -> launchd user jobs (backup, cleanup, heartbeat) are active
+```
+
+`chi unattended` sets this up; `chi doctor` verifies it. See [Operations](operations.md#unattended-mode).
+
+## Scheduled jobs
+
+`chi schedule` renders `launchd/job.plist.tmpl` into `~/Library/LaunchAgents/`:
+
+| Label | When | Runs | Installed if |
+|---|---|---|---|
+| `com.chi-service.backup` | daily at `BACKUP_HOUR`:17 | `chi backup run` | `RESTIC_REPOSITORY` is set |
+| `com.chi-service.media-clean` | daily 05:47 | `chi media clean` | `media` is enabled |
+| `com.chi-service.media-iptv` | daily 05:27 | `chi media iptv` | `media` is enabled |
+| `com.chi-service.heartbeat` | every 5 minutes | `curl HC_PING_URL` | `HC_PING_URL` is set |
+
+Logs go to `~/Library/Logs/chi-service/<name>.log`. Jobs run at low I/O priority and `nice 10`.
+
+## Design decisions
+
+Short records of the choices that shape the kit. Each lists the alternative and when you should switch.
+
+### ADR-1: Tailscale serve instead of a reverse proxy and your own domain
+
+- **Decision.** Publish services with `tailscale serve` on `https://<host>.<tailnet>.ts.net:<port>`.
+- **Why.** Zero-config TLS, no domain, no DNS, no open ports, end-to-end WireGuard. Cloudflare Tunnel as the main
+  entry would decrypt all traffic at Cloudflare and caps request bodies (bad for photo and video uploads).
+- **Cost.** URLs carry port numbers. The machine name appears in public Certificate Transparency logs.
+- **Switch when.** You want `photos.example.com` style names: see
+  [Remote access: prettier names](remote-access.md#prettier-names).
+
+### ADR-2: FileVault off with auto-login
+
+- **Decision.** The default unattended mode turns FileVault off and enables auto-login, then locks the screen
+  three seconds after login.
+- **Why.** Docker and Ollama start only after login, and macOS refuses auto-login while FileVault is on. With
+  FileVault on, every unplanned reboot stops at the unlock screen, and pre-boot SSH unlock on macOS 26 works only
+  from the LAN because Tailscale is not running yet.
+- **Cost.** A stolen disk is readable, and `/etc/kcpassword` stores the login password in a reversible form. Use
+  a unique password; see [Security](security.md#filevault-and-auto-login).
+- **Switch when.** You have a LAN jump host and a UPS, or the data is too sensitive. Keep FileVault on and use
+  `sudo fdesetup authrestart` for planned reboots.
+
+### ADR-3: OrbStack by default, Colima as the open-source option
+
+- **Decision.** `CHI_RUNTIME=orbstack` by default; `colima` is supported.
+- **Why.** OrbStack releases memory dynamically (important when sharing unified memory with LLMs), handles bind
+  mount permissions well and is free for personal use. Colima is fully open source but its VM has fixed memory.
+  Docker Desktop is heavier; Apple's `container` lacks native compose support today.
+- **Switch when.** You object to closed source or use the machine commercially (OrbStack requires a paid
+  license for commercial use). Set `CHI_RUNTIME=colima` and run `chi bootstrap runtime`.
+
+### ADR-4: Native Ollama
+
+- **Decision.** Ollama runs on the host; only Open WebUI is containerised.
+- **Why.** Metal GPU access. Ollama listens on `127.0.0.1` only, which is right because it has no
+  authentication.
+- **Cost.** One more service outside compose, managed by `brew services` and upgraded by `chi update`.
+
+### ADR-5: launchd for schedules
+
+- **Decision.** Scheduled jobs are LaunchAgents, not cron.
+- **Why.** cron is legacy on macOS: missed runs during sleep are not retried and privacy (TCC) permissions are
+  harder to manage. launchd jobs can be triggered by hand with `launchctl kickstart` and have explicit log paths.
+
+### ADR-6: Bash 3.2
+
+- **Decision.** All scripts run on the `/bin/bash` that ships with macOS (3.2).
+- **Why.** Bootstrap must work on a fresh Mac before Homebrew exists. Apple will not ship a newer GPLv3 bash.
+- **Consequences.** No associative arrays, no `mapfile`, no `${var,,}`, no `"${a[@]}"` on possibly-empty arrays
+  under `set -u`. CI runs `shellcheck`.
+
+### ADR-7: Manual updates, no Watchtower
+
+- **Decision.** `chi update` is run by hand every week or two.
+- **Why.** Unattended upgrades break things silently at night. Watchtower is archived. If you want
+  notifications of new images, add What's Up Docker (notify only).
+
+### ADR-8: Upstream compose for Immich
+
+- **Decision.** `stacks/photos/fetch.sh` downloads Immich's released `docker-compose.yml`; local changes live
+  in `compose.override.yaml`.
+- **Why.** Immich couples server, ML and Postgres extension versions and asks users to use its compose file
+  unmodified.

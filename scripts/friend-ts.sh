@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# 用 Tailscale HTTP API v2 管理“分享给朋友”：朋友用他自己的 Tailscale 账号（节点分享，不拉进你的 tailnet），
-# 再用 tailnet 策略（grants）限制他能访问本机的哪些端口。
+# Manage "share with a friend" through the Tailscale HTTP API v2: the friend keeps their own Tailscale account
+# (node sharing - they are not added to your tailnet), and tailnet policy grants limit which ports on this machine they can reach.
 #
-#   friend-ts.sh invite [email]          给本机生成一个分享邀请链接（给了 email 就由 Tailscale 发邮件）
-#   friend-ts.sh allow <email> [端口...]  允许这个朋友访问本机屏幕共享（tcp:5900 + udp:5900-5902）+ 额外端口
-#   friend-ts.sh revoke <email>          删掉这个朋友的规则
-#   friend-ts.sh cleanup                 删除离线的旧 chi-mini-* 节点
-#   friend-ts.sh status                  设备、分享邀请、朋友相关规则
+#   friend-ts.sh invite [email]           create a share invite link for this machine (with an email, Tailscale sends it)
+#   friend-ts.sh allow <email> [port...]  let this friend reach Screen Sharing here (tcp:5900 + udp:5900-5902) + extra ports
+#   friend-ts.sh revoke <email>           delete this friend's rule
+#   friend-ts.sh cleanup                  delete stale offline chi-mini-* nodes
+#   friend-ts.sh status                   devices, share invites, friend-related rules
 #
-# `tailscale` CLI 改不了策略、也建不了分享，所以走 API：
-#   令牌：管理后台 → Settings → Keys → Generate access token（https://login.tailscale.com/admin/settings/keys）
-#         存到 ~/.config/chi/tailscale-api-key 并 chmod 600。令牌权限 = 你本人的权限，最长 90 天过期。
-# API 文档：https://tailscale.com/api （OpenAPI：https://api.tailscale.com/api/v2?outputOpenapiSchema=true）
+# The `tailscale` CLI can't edit policy or create shares, so we use the API:
+#   Token: admin console -> Settings -> Keys -> Generate access token (https://login.tailscale.com/admin/settings/keys)
+#          Save it to ~/.config/chi/tailscale-api-key and chmod 600. The token has your own permissions and expires in 90 days at most.
+# API docs: https://tailscale.com/api (OpenAPI: https://api.tailscale.com/api/v2?outputOpenapiSchema=true)
 #
-# 注意：策略用 JSON 形式读写，写回后后台策略里的 // 注释和排版会丢；每次写之前原 HuJSON 都备份在
-#       ~/.config/chi/acl-backups/，想恢复就把备份内容贴回 Access Controls 页面。
+# Note: policy is read and written as JSON, so // comments and formatting in the admin console are lost on write. Before each
+#       write the original HuJSON is backed up to ~/.config/chi/acl-backups/; to restore, paste a backup into the Access Controls page.
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 ensure_brew_path
@@ -23,62 +23,62 @@ TOKEN_FILE="${CHI_TS_API_KEY_FILE:-$HOME/.config/chi/tailscale-api-key}"
 API="${TS_API_BASE:-https://api.tailscale.com/api/v2}"
 BACKUP_DIR="$HOME/.config/chi/acl-backups"
 KEYS_PAGE="https://login.tailscale.com/admin/settings/keys"
-# 屏幕共享：tcp:5900（VNC）+ udp:5900-5902（macOS「高性能」模式）。SSH(22) 故意不在默认里。
+# Screen Sharing: tcp:5900 (VNC) + udp:5900-5902 (macOS High Performance mode). SSH (22) is left out on purpose.
 DEFAULT_PORTS="tcp:5900 udp:5900-5902"
-# 收紧策略里给所有被分享用户（autogroup:shared）开放的端口，和 docs/onboarding.md 保持一致
+# Ports opened to all share recipients (autogroup:shared) in the tightened policy; keep in sync with docs/guest-access.md
 SHARED_PORTS='["tcp:443","tcp:8008","tcp:8009","tcp:7890"]'
 
-have jq   || die "需要 jq（brew install jq）"
-have curl || die "需要 curl"
+have jq   || die "Needs jq (brew install jq)"
+have curl || die "Needs curl"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 usage() {
   cat <<EOF
-用法: $(basename "$0") <命令>
-  invite [email]          生成本机的分享邀请链接（单次有效，30 天内未接受自动失效）
-  allow <email> [端口...]  允许该朋友访问本机：默认 tcp:5900 + udp:5900-5902（屏幕共享），可追加如 8010 / tcp:8003
-  revoke <email>          删除该朋友的规则（不撤销分享本身）
-  cleanup                 列出并删除离线的 chi-mini-* 旧节点（不含本机）
-  status                  设备、本机的分享邀请、朋友相关规则
+Usage: $(basename "$0") <command>
+  invite [email]          create a share invite link for this machine (single use, expires if not accepted in 30 days)
+  allow <email> [port...] let this friend reach this machine: tcp:5900 + udp:5900-5902 (Screen Sharing) by default, plus e.g. 8010 / tcp:8003
+  revoke <email>          delete this friend's rule (does not revoke the share itself)
+  cleanup                 list and delete stale offline chi-mini-* nodes (never this machine)
+  status                  devices, this machine's share invites, friend-related rules
 
-email 要写朋友接受邀请时用的 Tailscale 登录名（status 里 acceptedBy 那一列），不一定是你发邀请的邮箱。
+<email> is the Tailscale login the friend used to accept the invite (the acceptedBy column in status), not necessarily the address you invited.
 EOF
 }
 
-# ---------- 令牌 / API ----------
+# ---------- Token / API ----------
 
 load_token() {
   if [ ! -s "$TOKEN_FILE" ]; then
-    die "没有 API 令牌：$TOKEN_FILE
-    1) 打开 $KEYS_PAGE → Generate access token（建议 90 天）
-    2) 复制令牌后：(umask 077 && mkdir -p ~/.config/chi && pbpaste > $TOKEN_FILE)
-       （SSH 里没有剪贴板：(umask 077 && cat > $TOKEN_FILE)，粘贴，回车，Ctrl-D）"
+    die "No API token: $TOKEN_FILE
+    1) Open $KEYS_PAGE -> Generate access token (90 days recommended)
+    2) Copy the token, then: (umask 077 && mkdir -p ~/.config/chi && pbpaste > $TOKEN_FILE)
+       (over SSH there is no clipboard: (umask 077 && cat > $TOKEN_FILE), paste, Enter, Ctrl-D)"
   fi
   local mode
   mode="$(stat -f '%Lp' "$TOKEN_FILE" 2>/dev/null || stat -c '%a' "$TOKEN_FILE" 2>/dev/null || echo '?')"
   case "$mode" in
     600|400) ;;
-    *) warn "$TOKEN_FILE 权限是 ${mode}，建议 chmod 600" ;;
+    *) warn "$TOKEN_FILE has mode ${mode}; chmod 600 recommended" ;;
   esac
   TOKEN="$(tr -d ' \r\n\t' <"$TOKEN_FILE")"
   case "$TOKEN" in
     tskey-api-*) ;;
-    *) die "$TOKEN_FILE 里不像 API 访问令牌（应以 tskey-api- 开头；auth key / OAuth client secret 不行）" ;;
+    *) die "$TOKEN_FILE does not look like an API access token (should start with tskey-api-; auth keys and OAuth client secrets won't work)" ;;
   esac
 }
 
-# api <METHOD> <path> [curl 参数...]
-# 响应体写到 $TMP/body，响应头写到 $TMP/hdr，HTTP 状态码放在 ${HTTP}。非 2xx 时返回 1（调用方决定怎么处理）。
-# 令牌经 stdin 以 curl 配置的形式传入，不出现在命令行（ps 看不到）里，也不打印。
+# api <METHOD> <path> [curl args...]
+# Body goes to $TMP/body, headers to $TMP/hdr, the HTTP status to ${HTTP}. Returns 1 on non-2xx (the caller decides what to do).
+# The token is passed on stdin as curl config, so it never appears on the command line (invisible to ps) and is never printed.
 HTTP=""
 api() {
   local method="$1" path="$2"; shift 2
   : >"$TMP/body"; : >"$TMP/hdr"
   HTTP="$(printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" |
     curl -sS -K - -X "$method" -D "$TMP/hdr" -o "$TMP/body" -w '%{http_code}' \
-      --connect-timeout 10 --max-time 60 "$@" "$API$path")" || die "请求 $method $path 失败（网络？）"
+      --connect-timeout 10 --max-time 60 "$@" "$API$path")" || die "Request $method $path failed (network?)"
   case "$HTTP" in 2??) return 0 ;; *) return 1 ;; esac
 }
 
@@ -87,9 +87,9 @@ api_err() {
   msg="$(jq -r '.message // empty' "$TMP/body" 2>/dev/null || true)"
   [ -n "$msg" ] || msg="$(head -c 400 "$TMP/body")"
   case "$HTTP" in
-    401) printf 'HTTP 401：令牌无效或已过期 —— 去 %s 重新生成并覆盖 %s（%s）' "$KEYS_PAGE" "$TOKEN_FILE" "$msg" ;;
-    403) printf 'HTTP 403：令牌所属用户没有权限（需要 Owner/Admin）（%s）' "$msg" ;;
-    *)   printf 'HTTP %s：%s' "$HTTP" "$msg" ;;
+    401) printf 'HTTP 401: token invalid or expired - generate a new one at %s and overwrite %s (%s)' "$KEYS_PAGE" "$TOKEN_FILE" "$msg" ;;
+    403) printf 'HTTP 403: the token owner lacks permission (needs Owner/Admin) (%s)' "$msg" ;;
+    *)   printf 'HTTP %s: %s' "$HTTP" "$msg" ;;
   esac
 }
 
@@ -99,28 +99,28 @@ header_val() { awk -v k="$1" 'tolower($0) ~ "^"tolower(k)":" {sub(/^[^:]*:[ \t]*
 
 confirm() {
   local ans=""
-  [ -t 0 ] || die "需要交互确认（stdin 不是终端），已放弃"
+  [ -t 0 ] || die "Needs interactive confirmation (stdin is not a terminal); giving up"
   printf '%s [y/N] ' "$1"
   read -r ans || true
   case "$ans" in y|Y|yes|YES) return 0 ;; *) return 1 ;; esac
 }
 
-# ---------- 本机信息（来自本地 tailscaled，不需要令牌） ----------
+# ---------- This machine (from the local tailscaled, no token needed) ----------
 
 SELF_ID=""; SELF_NAME=""; SELF_ADDRS="[]"; OWNER=""
 load_self() {
   local st
-  st="$(tailscale status --json 2>/dev/null)" || die "tailscale status 失败：tailscaled 在跑吗？（chi doctor）"
+  st="$(tailscale status --json 2>/dev/null)" || die "tailscale status failed: is tailscaled running? (chi doctor)"
   SELF_ID="$(jq -r '.Self.ID // empty' <<<"$st")"
   SELF_NAME="$(jq -r '.Self.DNSName // "" | rtrimstr(".")' <<<"$st")"
   SELF_ADDRS="$(jq -c '.Self.TailscaleIPs // []' <<<"$st")"
   OWNER="$(jq -r '(.Self.UserID|tostring) as $u | .User[$u].LoginName // empty' <<<"$st")"
-  [ -n "$SELF_ID" ] && [ "$SELF_ADDRS" != "[]" ] || die "拿不到本机节点 ID / IP（tailscale 还没登录？）"
+  [ -n "$SELF_ID" ] && [ "$SELF_ADDRS" != "[]" ] || die "Could not get this node's ID / IP (is tailscale logged in?)"
 }
 
-# ---------- 策略处理（jq） ----------
+# ---------- Policy handling (jq) ----------
 
-# 公共 jq 定义：$e=朋友登录名，$a=本机地址数组（$ 是 jq 变量，不是 shell 变量）
+# Shared jq definitions: $e = friend's login, $a = array of this machine's addresses ($ are jq variables, not shell ones)
 # shellcheck disable=SC2016
 JQ_DEFS='
   def has_el($x): any(.[]?; . == $x);
@@ -133,7 +133,7 @@ JQ_DEFS='
   def has_allow_all: ([.acls[]? | select(acl_allow_all)] + [.grants[]? | select(grant_allow_all)]) | length > 0;
 '
 
-# 拉取当前策略：HuJSON 原文做备份，JSON 用来改；两次 ETag 必须一致（否则中途被人改了）
+# Fetch the current policy: raw HuJSON for the backup, JSON for editing. Both ETags must match (else it changed in between)
 fetch_policy() {
   local etag_h etag_j ts
   api_ok GET "/tailnet/-/acl" -H "Accept: application/hujson"
@@ -147,16 +147,16 @@ fetch_policy() {
 
   api_ok GET "/tailnet/-/acl" -H "Accept: application/json"
   etag_j="$(header_val ETag)"
-  jq . "$TMP/body" >"$TMP/current.json" 2>/dev/null || die "策略 JSON 解析失败：$(head -c 200 "$TMP/body")"
-  [ -n "$etag_j" ] || die "响应里没有 ETag，不敢无条件覆盖"
+  jq . "$TMP/body" >"$TMP/current.json" 2>/dev/null || die "Could not parse policy JSON: $(head -c 200 "$TMP/body")"
+  [ -n "$etag_j" ] || die "No ETag in the response; refusing to overwrite blindly"
   if [ -n "$etag_h" ] && [ "$etag_h" != "$etag_j" ]; then
-    die "两次读取之间策略被改过（ETag 不一致），重跑一次"
+    die "Policy changed between reads (ETag mismatch); run again"
   fi
   ETAG="$etag_j"
-  ok "已备份当前策略（HuJSON 原文）→ $BACKUP"
+  ok "Backed up current policy (raw HuJSON) -> $BACKUP"
 }
 
-# 校验：POST /acl/validate（不改任何东西）。顺带塞一条测试：你本人必须仍能连本机 22 和 5900
+# Validate via POST /acl/validate (changes nothing). Also adds a test: you must still reach this machine on 22 and 5900
 validate_policy() {
   local ip4
   ip4="$(jq -r '[.[] | select(test("^[0-9.]+$"))][0] // .[0]' <<<"$SELF_ADDRS")"
@@ -173,49 +173,49 @@ validate_policy() {
   if [ -n "$msg" ]; then
     jq . "$TMP/body" >&2 || cat "$TMP/body" >&2
     if jq -e '[.data[]?.errors[]?] | length > 0' "$TMP/body" >/dev/null 2>&1 || [ "$msg" != "warning(s) found" ]; then
-      die "校验没通过：${msg}（什么都没改）"
+      die "Validation failed: ${msg} (nothing changed)"
     fi
-    warn "校验有警告：$msg"
+    warn "Validation warnings: $msg"
   else
-    ok "校验通过（含测试：$OWNER 仍可访问 $ip4:22 和 :5900）"
+    ok "Validation passed (incl. test: $OWNER can still reach $ip4:22 and :5900)"
   fi
 }
 
-# diff → 确认 → POST（带 If-Match）
+# diff -> confirm -> POST (with If-Match)
 write_policy() {
   if diff -q "$TMP/current.json" "$TMP/new.json" >/dev/null; then
-    ok "策略没有变化，不用写"
+    ok "Policy unchanged, nothing to write"
     return 0
   fi
   validate_policy
   echo
-  log "改动（JSON，- 旧 / + 新）："
-  diff -u --label "当前策略" --label "新策略" "$TMP/current.json" "$TMP/new.json" || true
+  log "Changes (JSON, - old / + new):"
+  diff -u --label "current policy" --label "new policy" "$TMP/current.json" "$TMP/new.json" || true
   echo
   if [ "$HAS_COMMENTS" = 1 ]; then
-    warn "当前策略里有注释；API 以 JSON 写回后注释和排版会丢失（原文已备份：${BACKUP}）"
+    warn "The current policy has comments; writing JSON through the API drops comments and formatting (original backed up: ${BACKUP})"
   fi
-  confirm "写入 tailnet 策略？" || die "已取消，什么都没改"
+  confirm "Write tailnet policy?" || die "Cancelled, nothing changed"
   if ! api POST "/tailnet/-/acl" -H "Content-Type: application/json" -H "Accept: application/json" \
       -H "If-Match: $ETAG" --data-binary "@$TMP/new.json"; then
-    [ "$HTTP" = 412 ] && die "策略在这期间被别人改过（If-Match 不匹配），重跑一次即可"
-    die "写入失败：$(api_err)"
+    [ "$HTTP" = 412 ] && die "Policy was changed by someone else meanwhile (If-Match failed); just run again"
+    die "Write failed: $(api_err)"
   fi
-  ok "已写入。后台查看：https://login.tailscale.com/admin/acls/file"
+  ok "Written. View it at https://login.tailscale.com/admin/acls/file"
 }
 
 normalize_ports() {
-  # 输出 JSON 数组；5900 → tcp:5900，tcp:8000-8010 / udp:53 / * 原样
+  # Prints a JSON array; 5900 -> tcp:5900, while tcp:8000-8010 / udp:53 / * pass through as-is
   local p out="" item
   for p in "$@"; do
     case "$p" in
       '*')                                   item='*' ;;
       tcp:*|udp:*|sctp:*)                    item="$p" ;;
-      *[!0-9-]*|'')                          die "端口格式不对：${p}（例：5900、8000-8010、tcp:443、udp:53）" ;;
+      *[!0-9-]*|'')                          die "Bad port format: ${p} (e.g. 5900, 8000-8010, tcp:443, udp:53)" ;;
       *)                                     item="tcp:$p" ;;
     esac
     case "${item#*:}" in
-      *[!0-9-]*) [ "$item" = '*' ] || die "端口格式不对：$p" ;;
+      *[!0-9-]*) [ "$item" = '*' ] || die "Bad port format: $p" ;;
     esac
     out="$out$item"$'\n'
   done
@@ -225,12 +225,12 @@ normalize_ports() {
 check_email() {
   case "$1" in
     *@*) ;;
-    *) die "要写朋友的 Tailscale 登录名（形如 friend@gmail.com 或 name@github）" ;;
+    *) die "Give the friend's Tailscale login (like friend@example.com or name@github)" ;;
   esac
-  [ "$1" != "$OWNER" ] || die "$1 是你自己（owner），不需要朋友规则"
+  [ "$1" != "$OWNER" ] || die "$1 is you (the owner); no friend rule needed"
 }
 
-# ---------- 子命令 ----------
+# ---------- Subcommands ----------
 
 cmd_invite() {
   local email="${1:-}" body
@@ -239,40 +239,40 @@ cmd_invite() {
   api_ok POST "/device/$SELF_ID/device-invites" -H "Content-Type: application/json" --data-binary "$body"
   local url
   url="$(jq -r '.[0].inviteUrl // empty' "$TMP/body")"
-  [ -n "$url" ] || die "API 没返回 inviteUrl：$(head -c 300 "$TMP/body")"
-  ok "已为 $SELF_NAME 生成单次邀请（id $(jq -r '.[0].id' "$TMP/body")，30 天内未接受自动失效）"
-  [ -z "$email" ] || ok "Tailscale 已把邀请发到 ${email}（注意：朋友可以用任意账号接受，邀请不绑定这个邮箱）"
+  [ -n "$url" ] || die "API returned no inviteUrl: $(head -c 300 "$TMP/body")"
+  ok "Created a single-use invite for $SELF_NAME (id $(jq -r '.[0].id' "$TMP/body"); expires if not accepted in 30 days)"
+  [ -z "$email" ] || ok "Tailscale emailed the invite to ${email} (note: it can be accepted with any account; it is not tied to this address)"
   printf '\n  %s\n\n' "$url"
-  echo "朋友接受后跑：$(basename "$0") status   看他的登录名（acceptedBy），再：$(basename "$0") allow <登录名>"
+  echo "Once accepted, run: $(basename "$0") status   to see their login (acceptedBy), then: $(basename "$0") allow <login>"
 }
 
 cmd_allow() {
-  [ "$#" -ge 1 ] || die "用法: $(basename "$0") allow <email> [端口...]"
+  [ "$#" -ge 1 ] || die "Usage: $(basename "$0") allow <email> [port...]"
   local email="$1"; shift
   load_token; load_self; check_email "$email"
   local ports
-  # shellcheck disable=SC2086  # DEFAULT_PORTS 故意按空格拆开
+  # shellcheck disable=SC2086  # DEFAULT_PORTS is split on spaces on purpose
   ports="$(normalize_ports $DEFAULT_PORTS "$@")"
   if jq -e 'any(.[]; . == "*" or . == "tcp:22")' <<<"$ports" >/dev/null; then
-    warn "你给了 SSH(22) 或全部端口：朋友只该用屏幕共享，确定要开？（不想开就 Ctrl-C，或下面选 N）"
+    warn "You included SSH (22) or all ports; a guest should only need Screen Sharing. Sure? (Ctrl-C, or answer N below, to back out)"
   fi
   fetch_policy
 
-  # 先看朋友是否已接受分享（只提示，不阻止：也可以先写规则后接受）
+  # Check whether the friend has accepted the share (a hint only, not a blocker: the rule may be written before they accept)
   if api GET "/device/$SELF_ID/device-invites"; then
     if ! jq -e --arg e "$email" 'any(.[]?; .acceptedBy.loginName == $e)' "$TMP/body" >/dev/null; then
-      warn "本机的已接受邀请里没有 $email —— 规则里的 email 必须是他接受邀请时的登录名（$(basename "$0") status 可查）"
+      warn "No accepted invite for this machine by $email - the rule needs the login they accepted with (see $(basename "$0") status)"
     fi
   fi
 
   local tighten=0
   if jq -e "$JQ_DEFS has_allow_all" "$TMP/current.json" >/dev/null; then
-    warn "当前策略里有 allow-all 规则（src \"*\" → 全部端口）：被分享的用户（autogroup:shared）已经能访问本机所有端口，"
-    warn "单加一条朋友规则起不到限制作用。建议收紧为：你的成员设备全权限 + autogroup:shared 只开 $(jq -r 'join(" ")' <<<"$SHARED_PORTS") + 这个朋友额外的端口。"
-    if confirm "用收紧后的策略替换 allow-all 规则？"; then
+    warn "The current policy has an allow-all rule (src \"*\" -> all ports): share recipients (autogroup:shared) can already reach every port here,"
+    warn "so adding a friend rule restricts nothing. Suggested tightening: your member devices get full access + autogroup:shared only $(jq -r 'join(" ")' <<<"$SHARED_PORTS") + this friend's extra ports."
+    if confirm "Replace the allow-all rule with the tightened policy?"; then
       tighten=1
     else
-      warn "不收紧：照样加朋友规则，但在 allow-all 存在时它不起限制作用"
+      warn "Not tightening: adding the friend rule anyway, but it restricts nothing while allow-all exists"
     fi
   fi
 
@@ -293,7 +293,7 @@ cmd_allow() {
            + (if any(.grants[]; .src == ["autogroup:shared"]) then [] else [{src: ["autogroup:shared"], dst: ["*"], ip: $shared}] end)
            + .grants
      else . end)
-    # 已有这个朋友的规则就原地替换（diff 干净），多余的重复删掉；没有就追加到末尾
+    # If this friend already has a rule, replace it in place (clean diff) and drop duplicates; otherwise append it
     | {src: [$e], dst: $a, ip: $p} as $new
     | (.grants // []) as $g
     | if any($g[]; friend_rule($e; $a)) then
@@ -304,30 +304,30 @@ cmd_allow() {
       else .grants = $g + [$new] end
   ' "$TMP/current.json" >"$TMP/new.json"
 
-  log "朋友 $email → ${SELF_NAME}（$(jq -r 'join(", ")' <<<"$SELF_ADDRS")）：$(jq -r 'join(" ")' <<<"$ports")"
+  log "Friend $email -> ${SELF_NAME} ($(jq -r 'join(", ")' <<<"$SELF_ADDRS")): $(jq -r 'join(" ")' <<<"$ports")"
   write_policy
-  echo "朋友在他的 Mac 上：访达 → 前往 → 连接服务器 → vnc://${SELF_NAME}，用他自己的 macOS 账号登录（账号见 scripts/friend-mac.sh）。"
+  echo "On their Mac, your friend opens Finder -> Go -> Connect to Server -> vnc://${SELF_NAME} and logs in with their own macOS account (see scripts/friend-mac.sh)."
 }
 
 cmd_revoke() {
-  [ "$#" -eq 1 ] || die "用法: $(basename "$0") revoke <email>"
+  [ "$#" -eq 1 ] || die "Usage: $(basename "$0") revoke <email>"
   local email="$1"
   load_token; load_self
   fetch_policy
   local n
   n="$(jq --arg e "$email" --argjson a "$SELF_ADDRS" "$JQ_DEFS"'[.grants[]? | select(friend_rule($e; $a))] | length' "$TMP/current.json")"
   if [ "$n" = 0 ]; then
-    warn "策略里没有 $email → 本机 的朋友规则"
+    warn "No friend rule for $email -> this machine in the policy"
   fi
   jq --arg e "$email" --argjson a "$SELF_ADDRS" "$JQ_DEFS"'
     if has("grants") then .grants = [.grants[] | select(friend_rule($e; $a) | not)] else . end
   ' "$TMP/current.json" >"$TMP/new.json"
   if jq -e --arg e "$email" '[.. | strings | select(. == $e)] | length > 0' "$TMP/new.json" >/dev/null; then
-    warn "$email 在策略的其他地方还出现过（groups/acls/ssh 等），这里没动，自己去后台看"
+    warn "$email still appears elsewhere in the policy (groups/acls/ssh, etc.); left untouched - check the admin console"
   fi
   write_policy
-  echo "注意：这只删了他的额外端口；他仍是被分享用户（autogroup:shared 的端口照样能用）。"
-  echo "要彻底断开：https://login.tailscale.com/admin/machines → ${SELF_NAME%%.*} → Share… → Revoke。"
+  echo "Note: this only removed their extra ports; they are still a share recipient (autogroup:shared ports still work)."
+  echo "To cut them off completely: https://login.tailscale.com/admin/machines -> ${SELF_NAME%%.*} -> Share... -> Revoke."
 }
 
 cmd_cleanup() {
@@ -339,60 +339,60 @@ cmd_cleanup() {
     .devices[]
     | select(.nodeId != $self and (.isExternal | not) and (.connectedToControl != true))
     | select(((.name // "") | split(".")[0]) as $n | $n == $base or ($n | test("^" + $base + "-[0-9]+$")))
-    | [.nodeId, (.name // .hostname), (.os // "?"), (.lastSeen // "从未在线")] | @tsv
+    | [.nodeId, (.name // .hostname), (.os // "?"), (.lastSeen // "never")] | @tsv
   ' "$TMP/body" >"$TMP/stale.tsv"
   if [ ! -s "$TMP/stale.tsv" ]; then
-    ok "没有离线的 $base / $base-* 旧节点"
+    ok "No stale offline $base / $base-* nodes"
     return 0
   fi
-  log "这些节点离线且不是本机（${SELF_ID}）："
-  awk -F'\t' '{printf "  %-22s %-40s %-8s 最后在线 %s\n", $1, $2, $3, $4}' "$TMP/stale.tsv"
-  confirm "全部删除？（删除后那台机器要重新登录才能回来）" || die "已取消"
+  log "These nodes are offline and not this machine (${SELF_ID}):"
+  awk -F'\t' '{printf "  %-22s %-40s %-8s last seen %s\n", $1, $2, $3, $4}' "$TMP/stale.tsv"
+  confirm "Delete them all? (a deleted machine must log in again to come back)" || die "Cancelled"
   local id name _os _seen
   while IFS="$(printf '\t')" read -r id name _os _seen; do
-    if api DELETE "/device/$id"; then ok "已删除 $name"; else warn "删除 $name 失败：$(api_err)"; fi
+    if api DELETE "/device/$id"; then ok "Deleted $name"; else warn "Failed to delete $name: $(api_err)"; fi
   done <"$TMP/stale.tsv"
   if [ "${SELF_NAME%%.*}" != "$base" ]; then
-    echo "本机现在叫 ${SELF_NAME%%.*}：旧节点删掉后可在后台改回 ${base}（Machines → … → Edit machine name），改名后 TS_FQDN 和 chi serve 也要跟着改。"
+    echo "This machine is now named ${SELF_NAME%%.*}. With the stale nodes gone you can rename it back to ${base} (Machines -> ... -> Edit machine name); then update TS_FQDN and chi serve to match."
   fi
 }
 
 cmd_status() {
   load_token; load_self
-  log "设备（本机 = ${SELF_NAME}，${SELF_ID}）"
+  log "Devices (this machine = ${SELF_NAME}, ${SELF_ID})"
   api_ok GET "/tailnet/-/devices"
   jq -r '.devices | sort_by(.name)[]
-    | [ (if .connectedToControl then "在线" else "离线" end),
+    | [ (if .connectedToControl then "online" else "offline" end),
         (.name // .hostname), (.addresses[0] // "-"), (.os // "?"), (.user // "-"),
-        (if .isExternal then "分享进来" else "" end), (.lastSeen // "") ] | @tsv' "$TMP/body" |
+        (if .isExternal then "shared-in" else "" end), (.lastSeen // "") ] | @tsv' "$TMP/body" |
     awk -F'\t' '{printf "  %-4s %-40s %-16s %-8s %-28s %s %s\n", $1, $2, $3, $4, $5, $6, $7}'
 
   echo
-  log "本机的分享邀请"
+  log "Share invites for this machine"
   if api GET "/device/$SELF_ID/device-invites"; then
     if [ "$(jq 'length' "$TMP/body")" = 0 ]; then
-      echo "  （没有）"
+      echo "  (none)"
     else
       jq -r '.[] | [ .id, (.created // "" | .[0:10]),
-          (if .accepted then "已接受 by " + (.acceptedBy.loginName // "?") else "未接受" end),
+          (if .accepted then "accepted by " + (.acceptedBy.loginName // "?") else "pending" end),
           (.email // "-"), (if .accepted then "" else (.inviteUrl // "") end) ] | @tsv' "$TMP/body" |
-        awk -F'\t' '{printf "  %-10s %s  %-40s 邮件:%-24s %s\n", $1, $2, $3, $4, $5}'
+        awk -F'\t' '{printf "  %-10s %s  %-40s email:%-24s %s\n", $1, $2, $3, $4, $5}'
     fi
   else
-    warn "读不到邀请：$(api_err)"
+    warn "Could not read invites: $(api_err)"
   fi
 
   echo
-  log "策略里和朋友有关的规则"
+  log "Friend-related rules in the policy"
   api_ok GET "/tailnet/-/acl" -H "Accept: application/json"
   cp "$TMP/body" "$TMP/current.json"
   if jq -e "$JQ_DEFS has_allow_all" "$TMP/current.json" >/dev/null; then
-    warn "有 allow-all 规则：被分享的用户能访问本机全部端口（跑 allow 时会提议收紧）"
+    warn "There is an allow-all rule: share recipients can reach every port here (allow will offer to tighten it)"
   fi
   jq -r --argjson a "$SELF_ADDRS" "$JQ_DEFS"'
     [.grants[]? | select(((.src // []) | has_el("autogroup:shared"))
                          or ((.dst // []) | length > 0 and ((. - $a) | length == 0)))]
-    | if length == 0 then "  （没有）" else .[] | "  " + (.src | join(",")) + "  →  " + (.dst | join(",")) + "  :  " + ((.ip // ["*"]) | join(" ")) end
+    | if length == 0 then "  (none)" else .[] | "  " + (.src | join(",")) + "  ->  " + (.dst | join(",")) + "  :  " + ((.ip // ["*"]) | join(" ")) end
   ' "$TMP/current.json"
 }
 

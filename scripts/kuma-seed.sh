@@ -1,39 +1,43 @@
 #!/usr/bin/env bash
-# 给 Uptime Kuma 添加一组默认监控（各服务健康检查 + 外网）。会提示输入 Kuma 账号密码，走正常登录。
-# 用法：scripts/kuma-seed.sh [用户名]
-#       KUMA_PASSWORD_FILE=~/.config/chi/kuma-password scripts/kuma-seed.sh <用户名>   （非交互）
-# 幂等：同名监控已存在就跳过，重复跑不会重复添加。
-# 可选：.env 里设了 NTFY_TOPIC（和可选的 NTFY_SERVER，默认 https://ntfy.sh），
-#       会建一个 ntfy 通知（设为默认），并挂到这次新加的监控上。手机装 ntfy App 订阅同名 topic 即可收到。
-#       注意：ntfy.sh 公共服务器上 topic 名就是“密码”，谁知道名字谁就能订阅，起个难猜的。
-# 账号密码从 /dev/tty 读；JS 用 docker cp 传进容器，stdin 只用来传密码；每次调用 20s、整体 60s 超时。
+# Add a default set of monitors to Uptime Kuma (per-service health checks + internet). Prompts for the Kuma
+# username/password and logs in normally.
+# Usage: scripts/kuma-seed.sh [username]
+#        KUMA_PASSWORD_FILE=~/.config/chi/kuma-password scripts/kuma-seed.sh <username>   (non-interactive)
+# Idempotent: a monitor whose name already exists is skipped, so re-running adds nothing twice.
+# Optional: with NTFY_TOPIC set in .env (and optionally NTFY_SERVER, default https://ntfy.sh), creates an ntfy
+#           notification (set as default) and attaches it to the monitors added in this run. Subscribe to the same
+#           topic in the ntfy phone app to receive alerts.
+#           Note: on the public ntfy.sh server the topic name IS the password - anyone who knows it can subscribe,
+#           so pick something hard to guess.
+# Credentials are read from /dev/tty; the JS goes into the container via docker cp and stdin carries only the
+# password; 20s timeout per call, 60s overall.
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 load_env
 ensure_brew_path
-docker ps --format '{{.Names}}' | grep -qx chi-uptime-kuma || die "chi-uptime-kuma 没在跑 → chi up core"
+docker ps --format '{{.Names}}' | grep -qx chi-uptime-kuma || die "chi-uptime-kuma is not running -> chi up core"
 
 user="${1:-}"
-# 非交互：KUMA_PASSWORD_FILE 指向只有自己能读的密码文件（如 ~/.config/chi/kuma-password），用户名用第 1 个参数。
-# 别用 script/pty 往 /dev/tty 灌密码——pty 会把输入回显出来。
+# Non-interactive: KUMA_PASSWORD_FILE points at a password file only you can read (e.g. ~/.config/chi/kuma-password);
+# the username is the first argument. Don't feed the password into /dev/tty via script/pty - the pty echoes input.
 if [ -n "${KUMA_PASSWORD_FILE:-}" ]; then
-  [ -n "$user" ] || die "用 KUMA_PASSWORD_FILE 时要把用户名作为第 1 个参数"
-  [ -r "$KUMA_PASSWORD_FILE" ] || die "读不到 $KUMA_PASSWORD_FILE"
+  [ -n "$user" ] || die "With KUMA_PASSWORD_FILE, pass the username as the first argument"
+  [ -r "$KUMA_PASSWORD_FILE" ] || die "Cannot read $KUMA_PASSWORD_FILE"
   pass="$(head -n1 "$KUMA_PASSWORD_FILE")"
 else
-  { : </dev/tty; } 2>/dev/null || die "需要在交互式终端里运行（读不到 /dev/tty），或设 KUMA_PASSWORD_FILE"
-  [ -n "$user" ] || read -r -p "Uptime Kuma 用户名: " user </dev/tty
-  IFS= read -r -s -p "Uptime Kuma 密码: " pass </dev/tty; echo >&2
+  { : </dev/tty; } 2>/dev/null || die "Run this in an interactive terminal (cannot read /dev/tty), or set KUMA_PASSWORD_FILE"
+  [ -n "$user" ] || read -r -p "Uptime Kuma username: " user </dev/tty
+  IFS= read -r -s -p "Uptime Kuma password: " pass </dev/tty; echo >&2
 fi
-[ -n "$user" ] || die "用户名为空"
-[ -n "$pass" ] || die "密码为空"
+[ -n "$user" ] || die "Username is empty"
+[ -n "$pass" ] || die "Password is empty"
 
 js_local="$(mktemp "${TMPDIR:-/tmp}/chi-kuma-seed.XXXXXX")"
 js_remote="/tmp/chi-kuma-seed.$$.js"
-# shellcheck disable=SC2329  # 由 trap 调用
+# shellcheck disable=SC2329  # invoked via trap
 cleanup() {
   rm -f "$js_local"
-  # 只删我们自己拷进去的脚本文件；绝不在 Kuma 容器里杀进程（会连带杀掉内嵌的 MariaDB）
+  # Only delete the script we copied in; never kill processes in the Kuma container (it would take the embedded MariaDB down too)
   docker exec chi-uptime-kuma rm -f "$js_remote" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -42,14 +46,14 @@ cat >"$js_local" <<'JS'
 const { io } = require("/app/node_modules/socket.io-client");
 const fs = require("fs");
 
-const CALL_TIMEOUT = 20000; // 每次调用
-const TOTAL_TIMEOUT = 60000; // 整体
+const CALL_TIMEOUT = 20000; // per call
+const TOTAL_TIMEOUT = 60000; // overall
 const t0 = Date.now();
 const say = (m) => console.log(`   [${((Date.now() - t0) / 1000).toFixed(1)}s] ${m}`);
 const fail = (m) => { console.error(` ✗ ${m}`); process.exit(1); };
-setTimeout(() => fail(`整体超时（${TOTAL_TIMEOUT / 1000}s）：Kuma 没响应。看 docker logs --tail 50 chi-uptime-kuma`), TOTAL_TIMEOUT).unref();
+setTimeout(() => fail(`Overall timeout (${TOTAL_TIMEOUT / 1000}s): Kuma not responding. See docker logs --tail 50 chi-uptime-kuma`), TOTAL_TIMEOUT).unref();
 
-const password = fs.readFileSync(0, "utf8"); // 密码从 stdin 读（bash 那边 printf 过来，没有换行）
+const password = fs.readFileSync(0, "utf8"); // password comes from stdin (printf on the bash side, no trailing newline)
 const { KUMA_USER, TS_FQDN = "", NTFY_TOPIC = "", NTFY_SERVER = "" } = process.env;
 
 const base = {
@@ -69,47 +73,48 @@ const monitors = [
   { name: "MeTube", url: `${H}:8081/` },
   { name: "Ollama", url: `${H}:11434/api/version` },
   { name: "Dozzle", url: `${H}:8080/` },
-  { name: "外网（YouTube）", url: "https://www.youtube.com/", interval: 300, retryInterval: 120, description: "家里宽带是否通" },
+  { name: "Internet (YouTube)", url: "https://www.youtube.com/", interval: 300, retryInterval: 120, description: "Is the home connection up" },
 ];
-// Homepage 直连会被它的 Host 校验拒绝（400），所以走 Tailscale HTTPS，顺带监控 tailscale serve 和证书到期
-if (TS_FQDN) monitors.unshift({ name: "首页（Tailscale HTTPS）", url: `https://${TS_FQDN}/`, expiryNotification: true });
+// Homepage rejects direct requests in its Host check (400), so go through Tailscale HTTPS - which also monitors
+// tailscale serve and certificate expiry
+if (TS_FQDN) monitors.unshift({ name: "Homepage (Tailscale HTTPS)", url: `https://${TS_FQDN}/`, expiryNotification: true });
 
-const NTFY_NAME = "ntfy（chi）";
+const NTFY_NAME = "ntfy (chi)";
 const MSG = {
-  authIncorrectCreds: "用户名或密码错误",
-  "Too frequently, try again later.": "登录太频繁（Kuma 限制每分钟 20 次），等一分钟再试",
+  authIncorrectCreds: "Incorrect username or password",
+  "Too frequently, try again later.": "Too many logins (Kuma allows 20 per minute), wait a minute and retry",
 };
 const tr = (m) => MSG[m] || m;
 
-// 登录前就开始收：Kuma 在登录回调之前推送 monitorList / notificationList
+// Start listening before login: Kuma pushes monitorList / notificationList before the login callback
 let monitorList = null;
 let notificationList = null;
 const s = io("http://127.0.0.1:3001", { transports: ["websocket"], reconnection: false, timeout: CALL_TIMEOUT });
 s.on("monitorList", (l) => { monitorList = l; });
 s.on("notificationList", (l) => { notificationList = l; });
-s.on("connect_error", (e) => fail("连不上 Kuma（127.0.0.1:3001）：" + e.message));
+s.on("connect_error", (e) => fail("Cannot connect to Kuma (127.0.0.1:3001): " + e.message));
 
 const call = async (ev, ...args) => {
   try {
     return await s.timeout(CALL_TIMEOUT).emitWithAck(ev, ...args);
   } catch (e) {
-    return fail(`${ev} 调用 ${CALL_TIMEOUT / 1000}s 没有回应（${e.message}）`);
+    return fail(`${ev}: no reply within ${CALL_TIMEOUT / 1000}s (${e.message})`);
   }
 };
 
-say("连接 Kuma…");
-s.on("connect", () => say("已连接，等服务端就绪…"));
-// Kuma 在连接回调里先 await sendInfo（查库）才注册 login 等处理器，在那之前发的 login 会被静默丢掉、
-// 回调永远不来（旧版卡死的根因）。所以等收到 info 再登录。
+say("Connecting to Kuma...");
+s.on("connect", () => say("Connected, waiting for the server to be ready..."));
+// In its connection handler Kuma awaits sendInfo (a DB query) before registering login and other handlers; a login
+// sent before that is silently dropped and its callback never fires (why older versions hung). So log in after info.
 s.once("info", async () => {
-  say(`登录 ${KUMA_USER}…`);
+  say(`Logging in as ${KUMA_USER}...`);
   const login = await call("login", { username: KUMA_USER, password, token: "" });
-  if (login.tokenRequired) fail("这个账号开了两步验证（2FA），脚本不支持，先在网页里手动加");
-  if (!login.ok) fail("登录失败：" + tr(login.msg));
+  if (login.tokenRequired) fail("This account has two-factor auth (2FA) on, which the script does not support; add monitors in the web UI");
+  if (!login.ok) fail("Login failed: " + tr(login.msg));
   const existing = new Set(Object.values(monitorList || {}).map((m) => m.name));
-  say(`登录成功，已有 ${existing.size} 个监控`);
+  say(`Logged in, ${existing.size} existing monitors`);
 
-  // 可选：ntfy 通知（按名字 upsert，改了 .env 再跑会更新）
+  // Optional: ntfy notification (upserted by name, so re-running after editing .env updates it)
   const notificationIDList = {};
   if (NTFY_TOPIC) {
     const server = (NTFY_SERVER || "https://ntfy.sh").replace(/\/+$/, "");
@@ -121,20 +126,20 @@ s.once("info", async () => {
     }, old ? old.id : null);
     if (res.ok) {
       notificationIDList[res.id] = true;
-      console.log(` ✓ ntfy 通知${old ? "已更新" : "已创建"}：${server}/${NTFY_TOPIC}（设为默认，挂到新加的监控）`);
+      console.log(` ✓ ntfy notification ${old ? "updated" : "created"}: ${server}/${NTFY_TOPIC} (set as default, attached to new monitors)`);
     } else {
-      console.log(` ✗ ntfy 通知：${res.msg}（监控照常添加，不挂通知）`);
+      console.log(` ✗ ntfy notification: ${res.msg} (monitors are still added, without notification)`);
     }
   }
 
   let added = 0;
   for (const m of monitors) {
-    if (existing.has(m.name)) { console.log(` - ${m.name}：已存在，跳过`); continue; }
+    if (existing.has(m.name)) { console.log(` - ${m.name}: exists, skipped`); continue; }
     const res = await call("add", { ...base, ...m, notificationIDList });
     if (res.ok) added++;
-    console.log(res.ok ? ` ✓ ${m.name}` : ` ✗ ${m.name}：${res.msg}`);
+    console.log(res.ok ? ` ✓ ${m.name}` : ` ✗ ${m.name}: ${res.msg}`);
   }
-  say(`完成：新加 ${added} 个`);
+  say(`Done: ${added} added`);
   s.close();
   process.exit(0);
 });

@@ -13,12 +13,37 @@ jobs:
       - name: shellcheck
         run: shellcheck -x bin/chi scripts/*.sh stacks/*/*.sh
 
+      - name: python syntax
+        run: python3 -m py_compile scripts/*.py
+
+      - name: English only
+        # The repo is English-only: fail on any CJK characters or CJK / full-width punctuation.
+        # -I skips binary files; LC_ALL makes grep -P read the files as UTF-8.
+        env:
+          LC_ALL: C.UTF-8
+        run: |
+          if git ls-files -z | xargs -0 grep -nIP '[\x{3040}-\x{30ff}\x{3400}-\x{9fff}\x{3000}-\x{303f}\x{ff00}-\x{ffef}]'; then
+            echo "::error::Non-English (CJK) text found above"
+            exit 1
+          fi
+
+      - name: bats
+        run: |
+          if [ -d tests ]; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq bats
+            bats tests/
+          else
+            echo "no tests/ dir, skipping"
+          fi
+
       - name: docker compose config
         run: |
           cp .env.example .env
-          sed -i "s#/Users/CHANGE_ME#$HOME#g; s#^TS_FQDN=#TS_FQDN=ci.example.ts.net#" .env
+          # TZ is empty in .env.example (chi init fills it in); set it so the config matches a real install
+          sed -i "s#/Users/CHANGE_ME#$HOME#g; s#^TS_FQDN=#TS_FQDN=ci.example.ts.net#; s#^TZ=\$#TZ=UTC#" .env
           for f in stacks/*/compose.yaml; do
             s="$(basename "$(dirname "$f")")"
             docker compose -p "chi-$s" --env-file .env -f "$f" config -q
-            echo "✓ $s"
+            echo "ok $s"
           done
