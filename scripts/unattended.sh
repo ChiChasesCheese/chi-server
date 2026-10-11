@@ -61,6 +61,35 @@ else
   warn "看进度：fdesetup status"
 fi
 
+log "第 4 步：自动登录后立刻锁屏（服务照跑，桌面要密码）"
+# 自动登录 = 开机直接进已解锁的桌面；任何站在机器前、或用 ToDesk 这类“控制主屏幕会话”的工具连上来的人都能直接用。
+# 所以：(a) 屏保/熄屏后立即要密码；(b) 登录 60 秒后（等 OrbStack 等登录项起来）自动启动屏保 = 锁屏。
+if sysadminctl -screenLock status 2>&1 | grep -q "immediate"; then
+  ok "熄屏/屏保后立即要求密码"
+else
+  log "设置熄屏/屏保后立即要求密码（下面输 ${me} 的登录密码）"
+  sysadminctl -screenLock immediate -password - \
+    || warn "没设成功，请手动：系统设置 → 锁定屏幕 → 屏幕保护程序启动或显示器关闭后要求输入密码 → 立即"
+fi
+agent="$HOME/Library/LaunchAgents/com.chi-service.lock-at-login.plist"
+mkdir -p "$HOME/Library/LaunchAgents"
+cat >"$agent" <<'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.chi-service.lock-at-login</string>
+  <key>ProgramArguments</key>
+  <array><string>/bin/sh</string><string>-c</string><string>sleep 60; /usr/bin/open -a ScreenSaverEngine</string></array>
+  <key>RunAtLoad</key><true/>
+</dict>
+</plist>
+PLIST
+plutil -lint "$agent" >/dev/null
+launchctl bootout "gui/$(id -u)/com.chi-service.lock-at-login" 2>/dev/null || true
+launchctl bootstrap "gui/$(id -u)" "$agent" 2>/dev/null || true
+ok "登录 60 秒后自动锁屏（${agent}）"
+
 log "结果"
 fdesetup status
 echo "autoLoginUser: $(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null || echo 无)"
