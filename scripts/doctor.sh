@@ -42,11 +42,6 @@ else
 fi
 
 log "网络"
-if is_macos; then
-  dev="$(route -n get default 2>/dev/null | awk '/interface:/ {print $2}')"
-  port="$(networksetup -listallhardwareports 2>/dev/null | awk -v d="$dev" '/^Hardware Port:/ {p = $3} $2 == d {print p; exit}')"
-  [ "$port" = "Wi-Fi" ] && warn "默认路由走 Wi-Fi（${dev}）：服务器建议插网线"
-fi
 if have tailscale; then
   if tailscale status >/dev/null 2>&1; then
     ok "Tailscale 在线：$(tailscale ip -4 2>/dev/null | head -n1)"
@@ -62,7 +57,13 @@ if [ -f "$CHI_ROOT/.env" ]; then
   load_env
   ok ".env 存在，启用的 stack：$(resolve_stacks)"
   [ -n "${TS_FQDN:-}" ] && ok "TS_FQDN=$TS_FQDN" || bad "TS_FQDN 为空 → chi init"
-  [ -f "${RESTIC_PASSWORD_FILE:-/nonexistent}" ] && ok "restic 密码文件存在" || bad "restic 密码文件不存在 → chi init"
+  if [ -n "${RESTIC_REPOSITORY:-}" ]; then
+    [ -f "${RESTIC_PASSWORD_FILE:-/nonexistent}" ] && ok "restic 密码文件存在" || bad "restic 密码文件不存在 → chi init"
+  else
+    warn "备份未启用（.env 里 RESTIC_REPOSITORY 为空）"
+  fi
+  [ -n "${NTFY_TOPIC:-}" ] && ok "告警推送：ntfy topic 已配置" || warn "告警推送未配置（NTFY_TOPIC 为空）"
+  [ -n "${HC_PING_URL:-}" ] && ok "外部心跳：已配置" || warn "外部心跳未配置（HC_PING_URL 为空，整机掉线不会报警）"
 else
   bad "没有 .env → chi init"
 fi

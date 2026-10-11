@@ -31,10 +31,43 @@ remove_job() {
   rm -f "$AGENTS/$label.plist"
 }
 
+# 外部心跳：每 5 分钟 ping 一次 healthchecks.io。mini 整机掉线（断电、断网、死机）时
+# Kuma 自己也挂了发不出告警，只能靠外部服务“没收到心跳”来报警。
+install_heartbeat() {
+  local label=com.chi-service.heartbeat dest="$AGENTS/com.chi-service.heartbeat.plist"
+  if [ -z "${HC_PING_URL:-}" ]; then
+    remove_job heartbeat
+    return 0
+  fi
+  cat >"$dest" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>${label}</string>
+  <key>ProgramArguments</key>
+  <array><string>/usr/bin/curl</string><string>-fsS</string><string>-m</string><string>10</string><string>--retry</string><string>3</string><string>-o</string><string>/dev/null</string><string>${HC_PING_URL}</string></array>
+  <key>StartInterval</key><integer>300</integer>
+  <key>RunAtLoad</key><true/>
+</dict>
+</plist>
+PLIST
+  plutil -lint "$dest" >/dev/null
+  launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "$dest"
+  ok "heartbeat：每 5 分钟 ping 一次外部心跳"
+}
+
 case "${1:-install}" in
   install)
     mkdir -p "$AGENTS" "$HOME/Library/Logs/chi-service"
-    install_job backup backup run "${BACKUP_HOUR:-4}" 17
+    if [ -n "${RESTIC_REPOSITORY:-}" ]; then
+      install_job backup backup run "${BACKUP_HOUR:-4}" 17
+    else
+      remove_job backup
+      warn "RESTIC_REPOSITORY 为空：不装每日备份"
+    fi
+    install_heartbeat
     case " $(resolve_stacks) " in
       *" media "*) install_job media-clean media clean 5 47; install_job media-iptv media iptv 5 27 ;;
       *) remove_job media-clean; remove_job media-iptv ;;
@@ -42,7 +75,7 @@ case "${1:-install}" in
     log "手动触发测试：launchctl kickstart -k gui/$(id -u)/com.chi-service.backup"
     ;;
   uninstall)
-    remove_job backup; remove_job media-clean; remove_job media-iptv
+    remove_job backup; remove_job media-clean; remove_job media-iptv; remove_job heartbeat
     ok "已卸载全部定时任务"
     ;;
   *) die "用法: chi schedule [install|uninstall]" ;;
