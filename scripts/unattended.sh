@@ -46,15 +46,17 @@ case "$fv" in
 esac
 
 log "第 3 步：自动登录"
-current="$(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null || true)"
+current="$(autologin_effective)"
 if [ "$current" = "$me" ]; then
   ok "已设置自动登录：${me}"
 elif fdesetup status | grep -q "FileVault is Off"; then
   log "设置自动登录为 ${me}（下面输 ${me} 的登录密码）"
-  if sudo sysadminctl -autologin set -userName "$me" -password -; then
+  sudo sysadminctl -autologin set -userName "$me" -password - || true
+  # sysadminctl 密码错了也可能只写进 autoLoginUser 而没存密码，以实际状态为准
+  if [ "$(autologin_effective)" = "$me" ]; then
     ok "自动登录：${me}"
   else
-    warn "命令行设置失败，请手动：系统设置 → 用户与群组 → 自动登录 → ${me}"
+    warn "自动登录没生效（多半是密码不对）。请手动：系统设置 → 用户与群组 → 自动登录 → ${me}"
   fi
 else
   warn "FileVault 还没解密完，暂时不能开自动登录。解密完成后再跑一次：bin/chi unattended"
@@ -92,5 +94,5 @@ ok "登录 60 秒后自动锁屏（${agent}）"
 
 log "结果"
 fdesetup status
-echo "autoLoginUser: $(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null || echo 无)"
+echo "自动登录（实际生效）: $(autologin_effective)"
 tailscale serve status 2>/dev/null | grep -E '^https' || true

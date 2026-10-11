@@ -96,6 +96,15 @@ else
 fi
 ts_ip()  { tailscale ip -4 2>/dev/null | head -n1 || true; }
 
+# 自动登录是否真的生效：只看 loginwindow 的 autoLoginUser 不够——密码没存进 /etc/kcpassword 时
+# 设置项还在但开机不会登录。以 sysadminctl 的状态 + kcpassword 文件为准。输出生效的用户名，没生效输出空。
+autologin_effective() {
+  local u
+  u="$(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null || true)"
+  [ -n "$u" ] && [ -e /etc/kcpassword ] && ! sysadminctl -autologin status 2>&1 | grep -q "is OFF" && echo "$u"
+  return 0
+}
+
 # 所有 stack 名（stacks/ 下的目录）
 all_stacks() {
   local d

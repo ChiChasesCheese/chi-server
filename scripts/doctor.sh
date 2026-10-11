@@ -27,8 +27,8 @@ if is_macos; then
     *) ok "FileVault 关：可无人值守重启（代价：机器被偷数据可读）" ;;
   esac
 
-  au="$(defaults read /Library/Preferences/com.apple.loginwindow autoLoginUser 2>/dev/null || true)"
-  [ -n "$au" ] && ok "自动登录用户：$au" || warn "没开自动登录：重启后没人登录，Docker/Ollama 不会启动"
+  au="$(autologin_effective)"
+  [ -n "$au" ] && ok "自动登录用户：${au}" || warn "自动登录没生效：重启后没人登录，Docker/Ollama 不会启动（系统设置 → 用户与群组 → 自动登录）"
 
   df_pct="$(df -P / | awk 'NR==2 {gsub("%",""); print $5}')"
   [ "$df_pct" -lt 85 ] && ok "系统盘已用 ${df_pct}%" || bad "系统盘已用 ${df_pct}%（>85%）"
