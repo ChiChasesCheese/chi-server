@@ -71,7 +71,9 @@ bin/chi doctor          # 体检，全绿就完事
 | `chi serve [apply\|status\|reset]` | Tailscale HTTPS 暴露 |
 | `chi backup [init\|run\|snapshots\|check]` | restic 备份 |
 | `chi schedule [install\|uninstall]` | launchd 定时备份 |
-| `chi doctor` | 只读体检 |
+| `chi doctor` | 只读体检（在 mini 上） |
+| `chi remote-check` | 端到端体检（在控制机 MacBook 上，从用户视角） |
+| `chi unattended` | 无人值守：关 FileVault、自动登录、开机即锁屏（`ssh -t` 里跑，要密码） |
 | `chi fetch <url>` | 下载视频到媒体库（YouTube、B 站等） |
 | `chi media [usage\|clean\|scan\|sub\|iptv]` | 媒体库占用 / 清理 / 重扫 / 追剧订阅 / 央视卫视直播 |
 | `chi onboard` | 生成给自己和朋友的接入页面 + 邀请文字 |

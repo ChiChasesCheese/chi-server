@@ -56,6 +56,34 @@ bin/chi bootstrap
 - 有跳板设备 + UPS，或者上面放了你特别在意的东西 → **B**。
 - 不管选哪个，**都做好 `chi backup`**——磁盘坏和机器丢比黑客常见得多。
 
+### 已落地：模式 A + 开机即锁屏（2026-10）
+
+一条命令搞定（要输密码，必须在真终端里）：`ssh -t chi-mini 'cd ~/chi-service && bin/chi unattended'`，可重复执行。它做四件事：
+
+1. Tailscale 把本用户设为 operator（之后 `chi serve` 不再要 sudo）并挂上全部 serve 规则；
+2. 关 FileVault（Apple Silicon 上几秒完成）；
+3. 设自动登录——**以 `sysadminctl -autologin status` 和 `/etc/kcpassword` 为准**，只写进 `autoLoginUser` 而密码没存上时开机照样停在登录窗口（踩过）；命令行不行就用 系统设置 → 用户与群组 → 自动登录；
+4. 熄屏/屏保后**立即**要密码，且装一个 LaunchAgent：登录 3 秒后启动屏保 + 熄屏 = 锁屏。锁屏不影响登录项和服务启动。
+
+自动登录的真实代价：开机那几秒桌面是解锁的；`/etc/kcpassword` 里的密码是**可逆混淆**，FileVault 关着时拿到硬盘就能还原——所以 **chiserver 的密码不要在任何别处复用**，mini 上也不放主力 Apple ID / 私人密钥。
+
+### ToDesk 与多用户（朋友用自己的账号）
+
+- ToDesk 控制的是**主屏幕当前会话**，不能另开会话。自动登录后主屏幕就是 chiserver。
+- 所以规矩只有一条：**你用完就锁屏（Ctrl+Cmd+Q），不要退出登录**。锁屏时朋友经 ToDesk 只看到锁屏界面，点「切换用户」登录他自己的账号；你的会话退到后台，服务照跑。退出登录则会把 OrbStack/容器/Ollama 全部关掉。
+- 屏幕共享（`vnc://chi-mini`，选「以自己身份登录」）天然给每人一个独立会话，比 ToDesk 隔离得好；ToDesk 的长期密码别给朋友，也别在 ToDesk 里保存系统密码。
+- 两个账号都在屏幕共享白名单（`com.apple.access_screensharing`）里；朋友是标准用户，家目录 700。
+
+### 免密重启（给控制机 / Claude 用）
+
+只放开会让机器重启或关机的命令（最坏后果是重启），**不包含 tailscale**（operator 已够用；给 sudo 等于允许 `tailscale funnel` 开公网）：
+
+```bash
+ssh -t chi-mini 'echo "chiserver ALL=(root) NOPASSWD: /sbin/shutdown, /sbin/reboot, /usr/bin/fdesetup authrestart, /usr/bin/pmset" | sudo tee /etc/sudoers.d/chi-ops >/dev/null && sudo chmod 440 /etc/sudoers.d/chi-ops && sudo visudo -cf /etc/sudoers.d/chi-ops'
+```
+
+之后：`ssh chi-mini 'sudo -n /sbin/shutdown -r now'`，回来后在控制机上跑 `bin/chi remote-check`。
+
 ## 2.5 个人开发环境（chifig）
 
 `chi bootstrap` 的第一步 `dotfiles` 会调用你的 [chifig](https://github.com/ChiChasesCheese/chifig)（chezmoi）：zsh / git / tmux / Ghostty / mise / uv 等，以及 `keyboard` 模块（Windows 键盘 Alt→Cmd、Win→Ctrl）。它会先把现有的 `.zshrc`、`.gitconfig` 等备份到 `~/.local/state/chifig-backup/<日期>/` 再覆盖。以后更新：`chezmoi update` 或再跑一次 `chi bootstrap dotfiles`。

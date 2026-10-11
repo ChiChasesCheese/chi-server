@@ -1,5 +1,33 @@
 # 远程访问
 
+## 控制机：用 MacBook 管 mini（日常方式）
+
+一次性准备（在 MacBook 上）：
+
+1. 装 Tailscale 并用同一账号登录。`brew install --cask tailscale-app` 要 sudo，在 Claude Code 的 `!` 模式里会失败，改用 `brew fetch --cask tailscale-app` 后 `open` 下载好的 pkg，或直接 App Store。
+2. 专用 SSH 密钥 + 配置（mini 上的用户名是 **chiserver**，不是 MacBook 的用户名）：
+   ```sshconfig
+   Host chi-mini
+     HostName chi-mini
+     User chiserver
+     IdentityFile ~/.ssh/chi_mini_ed25519
+     IdentitiesOnly yes
+     ServerAliveInterval 30
+   ```
+   第一次连接要确认主机指纹；没有交互终端时可先 `ssh-keyscan -t ed25519 chi-mini >> ~/.ssh/known_hosts`（经 Tailscale 拿到的指纹可信）。公钥放进 mini 的 `~/.ssh/authorized_keys`。
+3. 本仓库在 MacBook 上也 clone 一份，代码在这里改、commit、push，mini 上 `git pull`。
+
+日常：
+
+| 想做的事 | 命令（在 MacBook 上） |
+|---|---|
+| 进 mini | `ssh chi-mini` |
+| 端到端体检（用户视角） | `bin/chi remote-check` |
+| mini 上的体检 | `ssh chi-mini 'cd ~/chi-service && bin/chi doctor'` |
+| 部署改动 | `git push` → `ssh chi-mini 'cd ~/chi-service && git pull && bin/chi up'` |
+| 重启 | `ssh chi-mini 'sudo -n /sbin/shutdown -r now'`（需先配免密重启，见 macos-setup.md） |
+| 看桌面 | `open vnc://chi-mini` |
+
 ## 默认：只在 tailnet 内（推荐，够用）
 
 ```
