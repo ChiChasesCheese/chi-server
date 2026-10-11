@@ -33,8 +33,14 @@ case "$fv" in
     ok "正在解密中：${fv}" ;;
   *"FileVault is On"*)
     warn "即将关闭 FileVault（下面会问 FileVault 用户名和密码，填 ${me} 和登录密码）"
-    sudo fdesetup disable
-    ok "已开始解密，后台进行，期间可照常使用" ;;
+    # fdesetup 失败时退出码不可靠（会打印 "FileVault was not disabled (N)" 但仍可能返回 0），以状态为准
+    sudo fdesetup disable || true
+    if fdesetup status | grep -qE "Off|Decryption in progress"; then
+      ok "已开始解密，后台进行，期间可照常使用"
+    else
+      warn "FileVault 没有关掉（多半是用户名或密码不对，或该账号不是 FileVault 解锁用户）"
+      warn "可改用：系统设置 → 隐私与安全性 → FileVault → 关闭"
+    fi ;;
   *)
     warn "看不懂的 FileVault 状态：${fv}，跳过" ;;
 esac
