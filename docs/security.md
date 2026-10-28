@@ -25,7 +25,7 @@ Out of scope or accepted:
 
 | Surface | Reachable from | Contents |
 |---|---|---|
-| `tailscale serve` HTTPS ports (443, 8001-8010) | Your tailnet; shared users limited by grants | All published stacks, onboarding page, mihomo dashboard |
+| `tailscale serve` HTTPS ports (443, 8001-8011) | Your tailnet; shared users limited by grants | All published stacks, onboarding page, mihomo dashboard |
 | Jellyfin `:8096` | LAN (with `MEDIA_BIND_ADDR=0.0.0.0`) and tailnet | Jellyfin login |
 | mihomo `:7890` | LAN and tailnet, limited by `lan-allowed-ips` | HTTP/SOCKS proxy |
 | SSH `:22`, Screen Sharing `:5900` | LAN and tailnet, allowed users only | Remote login |

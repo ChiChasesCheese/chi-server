@@ -1,0 +1,146 @@
+# scrape: Firecrawl - turns websites into LLM-ready Markdown / JSON through a REST API (scrape, crawl, map,
+# extract). Adapted from upstream's docker-compose.yaml (https://github.com/firecrawl/firecrawl): prebuilt
+# images instead of local builds, no FoundationDB (experimental queue backend), smaller resource limits for a
+# Mac mini, and only the API published.
+#   api                 REST API and its workers (the harness starts both in one container)
+#   playwright-service  headless Chromium for pages that need JavaScript
+#   redis, rabbitmq, nuq-postgres  job queue and rate-limit state; nothing worth backing up, so no volumes
+# There is no web UI and no API key check: anything that can reach port 3002 / 8011 can use it.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    image: ghcr.io/firecrawl/firecrawl:${FIRECRAWL_VERSION:-latest}
+    container_name: chi-firecrawl
+    restart: unless-stopped
+    command: node dist/src/harness.js --start-docker
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:3002:3002"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "3002"
+      EXTRACT_WORKER_PORT: "3004"
+      WORKER_PORT: "3005"
+      ENV: local
+      HARNESS_STARTUP_TIMEOUT_MS: "60000"
+      REDIS_URL: redis://redis:6379
+      REDIS_RATE_LIMIT_URL: redis://redis:6379
+      PLAYWRIGHT_MICROSERVICE_URL: http://playwright-service:3000/scrape
+      NUQ_RABBITMQ_URL: amqp://rabbitmq:5672
+      # nuq-postgres is only reachable on this stack's network; upstream's bundled pg_cron expects these defaults
+      POSTGRES_HOST: nuq-postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      # Authentication needs Supabase; the tailnet is the access control instead (docs/modules/scrape.md)
+      USE_DB_AUTHENTICATION: "false"
+      # Upstream defaults are 8 / 10 / 5 / 5, sized for a dedicated box
+      NUM_WORKERS_PER_QUEUE: "4"
+      CRAWL_CONCURRENT_REQUESTS: "5"
+      MAX_CONCURRENT_JOBS: "3"
+      BROWSER_POOL_SIZE: "3"
+      # AI features (/extract, JSON formats) when FIRECRAWL_MODEL is set; empty = off. Firecrawl asks for the
+      # OpenAI provider (Responses API) explicitly, so every AI call goes to the litellm gateway below, which
+      # routes claude-* to Anthropic and other models to the host's Ollama (litellm.yaml)
+      OPENAI_BASE_URL: "${FIRECRAWL_MODEL:+http://litellm:4000/v1}"
+      OPENAI_API_KEY: "${FIRECRAWL_MODEL:+${FIRECRAWL_LLM_KEY}}"
+      MODEL_NAME: "${FIRECRAWL_MODEL:-}"
+      TZ: "${TZ:-UTC}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+    depends_on:
+      redis:
+        condition: service_started
+      playwright-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      nuq-postgres:
+        condition: service_healthy
+    cpus: 2.0
+    mem_limit: 4g
+    memswap_limit: 4g
+    logging: *logging
+
+  playwright-service:
+    image: ghcr.io/firecrawl/playwright-service:latest
+    container_name: chi-firecrawl-playwright
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      BLOCK_MEDIA: "true"
+      MAX_CONCURRENT_PAGES: "5"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp/.cache:noexec,nosuid,size=1g
+    cpus: 2.0
+    mem_limit: 2g
+    memswap_limit: 2g
+    logging: *logging
+
+  redis:
+    image: redis:alpine
+    container_name: chi-firecrawl-redis
+    restart: unless-stopped
+    command: redis-server --bind 0.0.0.0
+    logging: *logging
+
+  rabbitmq:
+    image: rabbitmq:3
+    container_name: chi-firecrawl-rabbitmq
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *logging
+
+  # Only started when FIRECRAWL_MODEL is set (pre-up.sh writes COMPOSE_PROFILES=ai). Not published; the master
+  # key is still required (LiteLLM refuses to start without one)
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: chi-firecrawl-litellm
+    restart: unless-stopped
+    profiles: ["ai"]
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      LITELLM_MASTER_KEY: "${FIRECRAWL_LLM_KEY}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      LITELLM_TELEMETRY: "False"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./litellm.yaml:/app/config.yaml:ro
+    mem_limit: 1g
+    logging: *logging
+
+  nuq-postgres:
+    image: ghcr.io/firecrawl/nuq-postgres:latest
+    container_name: chi-firecrawl-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    logging: *logging

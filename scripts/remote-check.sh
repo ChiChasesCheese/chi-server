@@ -75,6 +75,7 @@ check core  :8002   Dozzle
 check ai    :8003   "Open WebUI"
 check media :8009   Jellyfin
 check media :8010   MeTube
+check scrape :8011  Firecrawl
 c="$(code "https://$TS:8008")"
 [ "$c" = 200 ] && ok "Landing page https://${TS}:8008 -> ${c}" || warn "Landing page :8008 -> ${c} (never ran chi onboard?)"
 

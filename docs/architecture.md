@@ -89,6 +89,7 @@ Current mappings:
 | `vault` | `8005=8222` |
 | `photos` | `8006=2283` |
 | `media` | `8009=8096 8010=8081` |
+| `scrape` | `8011=3002` |
 | `public` | (empty) |
 
 `chi serve` also publishes two non-stack endpoints: `8007` -> mihomo dashboard (only while mihomo is running)

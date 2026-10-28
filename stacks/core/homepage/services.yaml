@@ -58,6 +58,12 @@
         description: Paste a link to download a video
         server: local
         container: chi-metube
+    - Firecrawl:
+        icon: mdi-spider-web
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8011
+        description: Scraping API (no UI; see docs/modules/scrape.md)
+        server: local
+        container: chi-firecrawl
     - Onboarding:
         icon: mdi-account-plus
         href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8008

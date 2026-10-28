@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `scrape` stack: self-hosted [Firecrawl](https://github.com/firecrawl/firecrawl) API on tailnet port 8011, with
+  optional AI extraction (`FIRECRAWL_MODEL`) through a LiteLLM gateway: `claude-*` models via the Anthropic API
+  (`ANTHROPIC_API_KEY`), anything else via the host's Ollama. `chi init` generates `FIRECRAWL_LLM_KEY`.
+
 ## [1.0.0] - 2026-10-11
 
 First public release as chi-server: an English, modular kit for running an Apple Silicon Mac mini (macOS 26+) as

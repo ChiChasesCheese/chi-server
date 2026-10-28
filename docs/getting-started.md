@@ -122,6 +122,7 @@ This maps each stack's ports (from its `stack.conf`) to HTTPS ports on your tail
 | `https://<TS_FQDN>:8005` | Vaultwarden |
 | `https://<TS_FQDN>:8006` | Immich |
 | `https://<TS_FQDN>:8009` / `:8010` | Jellyfin / MeTube |
+| `https://<TS_FQDN>:8011` | Firecrawl API (no UI) |
 
 Only enabled stacks are published. Each module page describes first-run setup.
 

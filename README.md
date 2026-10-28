@@ -30,6 +30,7 @@ and silence.
 | `photos` | Immich photo library, using the upstream compose file | [photos](docs/modules/photos.md) |
 | `media` | Jellyfin media server, MeTube (yt-dlp) downloader, subscriptions, live TV | [media](docs/modules/media.md) |
 | `public` | Cloudflare Tunnel for the few things that must be public, on an isolated network | [public](docs/modules/public.md) |
+| `scrape` | Firecrawl: a scraping API that turns websites into LLM-ready Markdown / JSON | [scrape](docs/modules/scrape.md) |
 | Split routing | mihomo proxy that routes only selected sites through an upstream proxy | [split-routing](docs/modules/split-routing.md) |
 | Android TV | Manage an Android TV / Google TV box over adb: sideload, proxy, always-on VPN | [android-tv](docs/modules/android-tv.md) |
 
@@ -60,7 +61,7 @@ Platform features shared by all modules:
 |         :443  Homepage      :8001 Uptime Kuma   :8002 Dozzle                    |
 |         :8003 Open WebUI    :8004 n8n           :8005 Vaultwarden               |
 |         :8006 Immich        :8009 Jellyfin      :8010 MeTube                    |
-|         :8007 mihomo UI     :8008 onboarding page                               |
+|         :8007 mihomo UI     :8008 onboarding    :8011 Firecrawl API             |
 |                     |                                                           |
 |                     v  127.0.0.1:<port>                                         |
 |  OrbStack / Colima (Linux VM) -- docker compose projects chi-<stack>            |
@@ -68,7 +69,7 @@ Platform features shared by all modules:
 |                     |                                                           |
 |                     `- host.docker.internal:11434 --> Ollama (native, Metal)    |
 |                                                                                 |
-|  public stack: cloudflared --(isolated network)--> public apps                 |
+|  public stack: cloudflared --(isolated network)--> public apps                  |
 |                     ^ outbound only                                             |
 |  launchd: restic backup, media cleanup, IPTV refresh, heartbeat                 |
 +---------------------------------------------------------------------------------+
@@ -149,7 +150,7 @@ Brewfile                host tools installed by `chi bootstrap brew`
 - [CLI reference](docs/cli.md)
 - Modules: [core](docs/modules/core.md), [ai](docs/modules/ai.md), [automation](docs/modules/automation.md),
   [vault](docs/modules/vault.md), [photos](docs/modules/photos.md), [media](docs/modules/media.md),
-  [public](docs/modules/public.md), [split-routing](docs/modules/split-routing.md),
+  [public](docs/modules/public.md), [scrape](docs/modules/scrape.md), [split-routing](docs/modules/split-routing.md),
   [android-tv](docs/modules/android-tv.md)
 - [Remote access](docs/remote-access.md): reaching and managing the server from other machines
 - [Guest access](docs/guest-access.md): giving friends and family access

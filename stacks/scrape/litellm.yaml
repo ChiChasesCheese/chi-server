@@ -1,0 +1,25 @@
+# LiteLLM gateway for Firecrawl's AI features (mounted into chi-firecrawl-litellm).
+# Firecrawl calls the OpenAI API (mostly the Responses API) with MODEL_NAME = FIRECRAWL_MODEL; this routes the
+# model name to a backend:
+#   claude-*                Anthropic API (ANTHROPIC_API_KEY)
+#   text-embedding-3-small  the name Firecrawl hard-codes for embeddings (link ranking in /extract and /map)
+#                           -> nomic-embed-text on the host's Ollama
+#   anything else           a model on the host's Ollama, e.g. qwen3:8b
+
+model_list:
+  - model_name: "claude-*"
+    litellm_params:
+      model: "anthropic/claude-*"
+      api_key: os.environ/ANTHROPIC_API_KEY
+  - model_name: text-embedding-3-small
+    litellm_params:
+      model: ollama/nomic-embed-text
+      api_base: http://host.docker.internal:11434
+  - model_name: "*"
+    litellm_params:
+      model: "ollama_chat/*"
+      api_base: http://host.docker.internal:11434
+
+litellm_settings:
+  # Firecrawl sends OpenAI-only parameters (e.g. reasoning settings); drop what a backend does not support
+  drop_params: true

@@ -38,6 +38,8 @@ fill_if_empty RESTIC_PASSWORD_FILE "$HOME/.config/chi/restic-password"
 fill_if_empty OPEN_WEBUI_SECRET_KEY "$(rand_hex 32)"
 fill_if_empty N8N_ENCRYPTION_KEY "$(rand_hex 32)"
 fill_if_empty CLASH_SECRET "$(rand_hex 16)"
+# LiteLLM refuses to start without a master key, and requires the sk- prefix
+fill_if_empty FIRECRAWL_LLM_KEY "sk-$(rand_hex 24)"
 fill_if_empty NTFY_TOPIC "chi-$(rand_alnum 20)"
 
 # Default TZ to the host's zone (/etc/localtime -> .../zoneinfo/Area/City); UTC if it can't be read.

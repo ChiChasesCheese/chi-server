@@ -23,7 +23,7 @@ services:
       - "${BIND_ADDR:-127.0.0.1}:8300:80"
     environment:
       TZ: "${TZ}"
-      BASE_URL: "https://${TS_FQDN:-localhost}:8011"
+      BASE_URL: "https://${TS_FQDN:-localhost}:8012"
       SECRET_KEY: "${NOTES_SECRET_KEY}"
     volumes:
       - ${DATA_DIR}/notes:/data
@@ -53,11 +53,11 @@ generated, to the `fill_if_empty` calls in `scripts/init-env.sh`. Then run `chi 
 ```bash
 # Stack manifest (sourced by scripts/lib.sh). Keep it to plain KEY="value" lines.
 DESCRIPTION="Notes app"
-SERVE="8011=8300"
+SERVE="8012=8300"
 ```
 
-`SERVE` maps HTTPS port 8011 on the tailnet to `127.0.0.1:8300`. Use an empty `SERVE=""` if the stack should not
-be published on the tailnet. Tailnet HTTPS ports currently in use: 443 and 8001-8010.
+`SERVE` maps HTTPS port 8012 on the tailnet to `127.0.0.1:8300`. Use an empty `SERVE=""` if the stack should not
+be published on the tailnet. Tailnet HTTPS ports currently in use: 443 and 8001-8011.
 
 ## 4. Optional hooks
 
@@ -86,7 +86,7 @@ Add a card to `stacks/core/homepage/services.yaml`:
 ```yaml
     - Notes:
         icon: mdi-note-text
-        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8011
+        href: https://{{HOMEPAGE_VAR_TS_FQDN}}:8012
         description: Notes
         server: local
         container: chi-notes
